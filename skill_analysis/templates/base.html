@@ -1,0 +1,153 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Dashboard{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet"/>
+  
+  {% block extra_css %}{% endblock %}
+
+<style>
+    :root {
+      --primary: #555879;
+      --secondary: #98A1BC;
+      --light: #C4CAD0;
+      --background: #E6E0D4;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: var(--background); /* changed to background */
+    }
+
+    .wrapper {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      width: 250px;
+      background-color: var(--secondary);
+      padding-top: 20px;
+      transition: all 0.3s ease;
+    }
+
+    .sidebar.hidden {
+      margin-left: -250px;
+    }
+
+    .sidebar a {
+      background-color: white;
+      display: flex;
+      align-items: center;
+      padding: 10px 20px;
+      text-decoration: none;
+      color: #333;
+      font-weight: bold;
+      transition: background-color 0.2s ease;
+      border-radius: 8px;
+      margin: 5px 10px;
+    }
+
+    .sidebar a:hover,
+    .sidebar a.active {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .sidebar i {
+      margin-right: 10px;
+    }
+
+    .topbar {
+      height: 60px;
+      background-color: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+
+    .toggle-btn {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .topbar .user-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .main {
+      flex-grow: 1;
+      padding: 20px;
+      background-color: var(--background); /* changed to background */
+      color: #333;
+    }
+
+    .content-box {
+      background-color: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <button class="toggle-btn" onclick="toggleSidebar()">
+      <i class="bi bi-list"></i>
+    </button>
+    <div class="user-section">
+      <span><strong>Welcome, Alfira!</strong></span>
+      <img src="https://via.placeholder.com/35" alt="User" style="border-radius: 50%; height: 35px;">
+    </div>
+  </div>
+
+  <!-- Wrapper -->
+  <div class="wrapper">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <a href="{% url 'home_icc' %}" class="{% if request.path == '/' %}active{% endif %}">
+        <i class="bi bi-house-door-fill"></i> Dashboard
+      </a>
+      <a href="{% url 'student_icc' %}" class="{% if request.path == '/student_icc/' %}active{% endif %}">
+        <i class="bi bi-person-fill"></i> Student
+      </a>
+      <a href="{% url 'analysis' %}" class="{% if request.path == '/analysis/' %}active{% endif %}">
+        <i class="bi bi-bar-chart-fill"></i> Analysis
+      </a>
+      <a href="{% url 'internship_icc' %}" class="{% if request.path == '/internship/' %}active{% endif %}">
+        <i class="bi bi-bar-chart-fill"></i> Internship
+      </a>
+      <a href="{% url 'skill_icc' %}" class="{% if request.path == '/skill_icc/' %}active{% endif %}">
+        <i class="bi bi-mortarboard-fill"></i> Skill
+      </a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+      {% block content %}
+      {% endblock %}
+    </div>
+  </div>
+
+  <!-- Sidebar Toggle Script -->
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('hidden');
+    }
+  </script>
+</body>
+</html>

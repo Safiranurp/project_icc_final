@@ -1,0 +1,207 @@
+{% extends "base_student.html" %}
+{% block title %}Skill{% endblock %}
+
+{% block content %}
+<div class="content-box">
+  <!-- === SKILLS TABLE === -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="fw-bold">Skills</h2>
+    <button class="btn btn-outline-primary" onclick="toggleForm()">➕ Add Skill</button>
+  </div>
+
+  <div class="table-responsive mb-5">
+    <table class="table table-bordered text-center">
+      <thead class="table-secondary">
+        <tr>
+          <th>Skill</th>
+          <th>Type</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+        <tbody>
+          {% if student_skills %}
+            {% for skill in student_skills %}
+              <tr>
+                <td>{{ skill.skill_name }}</td>
+                <td>{{ skill.skill_type }}</td>
+                <td>
+                  <a href="{% url 'delete_skill' skill.skill_name %}" 
+                    class="btn btn-sm btn-danger"
+                    onclick="return confirm('Delete this skill?');">🗑</a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="3">No skill data found</td></tr>
+          {% endif %}
+        </tbody>
+    </table>
+  </div>
+
+  <!-- === ADD SKILL FORM === -->
+  <div id="skillForm" class="card mt-4 p-4 shadow" style="display: none;">
+    <form method="post" action="{% url 'add_skill' %}">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label>Skill Type</label>
+        <select id="skillType" name="skill_type" class="form-select" required>
+          {% for type in skill_types %}
+            <option value="{{ type }}">{{ type }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label>Skill Name</label>
+        <select id="skillName" name="skill_name" class="form-select" required></select>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button type="submit" class="btn btn-primary">Add</button>
+        <button type="button" class="btn btn-secondary" onclick="toggleForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- === CERTIFICATE SECTION === -->
+  <div class="mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="fw-bold">Certificates</h2>
+      <button class="btn btn-outline-success" onclick="toggleCertForm()">➕ Add Certificate</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered text-center">
+        <thead class="table-secondary">
+          <tr>
+            <th>Skill Type</th>
+            <th>Skill Name</th>
+            <th>Certificate Name</th>
+            <th>Date Uploaded</th>
+            <th>File</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if certificates %}
+            {% for cert in certificates %}
+              <tr>
+                <td>{{ cert.skill_type }}</td>
+                <td>{{ cert.skill_name }}</td>
+                <td>{{ cert.certificate_name }}</td>
+                <td>{{ cert.date_uploaded }}</td>
+                <td><a href="{{ cert.file.url }}" target="_blank">View PDF</a></td>
+                <td>
+                  <a href="{% url 'delete_certificate' cert.c_id %}" 
+                    class="btn btn-sm btn-danger"
+                    onclick="return confirm('Delete this certificate?');">🗑</a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="5">No certificates uploaded</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- === ADD CERTIFICATE FORM === -->
+  <div id="certForm" class="card mt-4 p-4 shadow" style="display: none;">
+    <form method="post" action="{% url 'add_certificate' %}" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label>Skill Type</label>
+        <select id="certSkillType" name="skill_type" class="form-select" required>
+          <option value="Hard Skill">Hard Skill</option>
+          <option value="Soft Skill">Soft Skill</option>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label>Skill Name</label>
+        <select id="certSkillName" name="skill_name" class="form-select" required>
+          <option value="">Select Skill</option>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label>Certificate Name</label>
+        <input type="text" name="certificate_name" class="form-control" required>
+      </div>
+
+      <div class="mb-3">
+        <label>Upload Certificate (PDF only)</label>
+        <input type="file" name="file" accept="application/pdf" class="form-control" required>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button type="submit" class="btn btn-success">Upload</button>
+        <button type="button" class="btn btn-secondary" onclick="toggleCertForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- === SCRIPT === -->
+<script>
+  function toggleForm() {
+    const form = document.getElementById("skillForm");
+    form.style.display = form.style.display === "none" ? "block" : "none";
+    populateSkills();
+  }
+
+  function toggleCertForm() {
+    const form = document.getElementById("certForm");
+    form.style.display = form.style.display === "none" ? "block" : "none";
+    populateCertSkills();
+  }
+
+  const skillTypeSelect = document.getElementById("skillType");
+  const skillNameSelect = document.getElementById("skillName");
+  const certSkillTypeSelect = document.getElementById("certSkillType");
+  const certSkillNameSelect = document.getElementById("certSkillName");
+
+  function populateSkills() {
+    const selectedType = skillTypeSelect.value;
+    if (!selectedType) return;
+
+    fetch(`/get_skills_by_type/?skill_type=${encodeURIComponent(selectedType)}`)
+      .then(res => res.json())
+      .then(data => {
+        skillNameSelect.innerHTML = "";
+        data.forEach(skill => {
+          const opt = document.createElement("option");
+          opt.value = skill;
+          opt.textContent = skill;
+          skillNameSelect.appendChild(opt);
+        });
+      });
+  }
+
+  function populateCertSkills() {
+    const selectedType = certSkillTypeSelect.value;
+    if (!selectedType) return;
+
+    fetch(`/get_skills_by_type/?skill_type=${encodeURIComponent(selectedType)}`)
+      .then(res => res.json())
+      .then(data => {
+        certSkillNameSelect.innerHTML = '<option value="">Select Skill</option>';
+        data.forEach(skill => {
+          const opt = document.createElement("option");
+          opt.value = skill;
+          opt.textContent = skill;
+          certSkillNameSelect.appendChild(opt);
+        });
+      });
+  }
+
+  skillTypeSelect?.addEventListener("change", populateSkills);
+  certSkillTypeSelect?.addEventListener("change", populateCertSkills);
+
+  window.onload = () => {
+    populateSkills();
+    populateCertSkills();
+  };
+</script>
+{% endblock %}
