@@ -1,7 +1,97 @@
 {% extends "base.html" %}
 
-{% block title %}student_icc{% endblock %}
+{% block title %}Student{% endblock %}
 
-<h1>
-    student _icc
-</h1>
+{% block content %}
+<div class="content-box">
+  <h2>Students</h2>
+
+  <form method="get" class="mb-3 d-flex gap-2">
+      <input type="text" name="q" placeholder="Search by name or ID" value="{{ query }}" class="form-control w-25">
+      <select name="batch" class="form-select w-25">
+          <option value="">All Batches</option>
+          {% for b in batches %}
+              <option value="{{ b }}" {% if b == batch %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+                <th>Name</th>
+                <th>Student ID</th>
+                <th>Major</th>
+                <th>Batch</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.full_name }}</td>
+                <td>{{ student.student_id }}</td>
+                <td>{{ student.major }}</td>
+                <td>{{ student.batch }}</td>
+                <td>
+                    <a href="{% url 'student_data' student.student_id %}" class="btn btn-sm btn-link">
+                        View Data
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No students found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+  </div>
+
+  <div class="mt-3">
+    <nav aria-label="Page navigation">
+      <ul class="pagination justify-content-center">
+        {% if students.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ students.previous_page_number }}&q={{ query }}&batch={{ batch }}">Previous</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">Previous</span>
+          </li>
+        {% endif %}
+
+        {% for num in students.paginator.page_range %}
+          {% if num >= students.number|add:"-2" and num <= students.number|add:"2" %}
+            {% if students.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% else %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}&q={{ query }}&batch={{ batch }}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% elif num == 1 or num == students.paginator.num_pages %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ num }}&q={{ query }}&batch={{ batch }}">{{ num }}</a>
+            </li>
+          {% elif num == students.number|add:"-3" or num == students.number|add:"3" %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+
+        {% if students.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ students.next_page_number }}&q={{ query }}&batch={{ batch }}">Next</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled">
+            <span class="page-link">Next</span>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+</div>
+{% endblock %}

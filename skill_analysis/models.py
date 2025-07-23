@@ -2,6 +2,8 @@ import os
 from django.db import models
 
 
+from django.db import models
+
 class Student(models.Model):
     student_id = models.CharField(primary_key=True, max_length=50)
     full_name = models.TextField(blank=True, null=True)
@@ -15,11 +17,15 @@ class Student(models.Model):
     year_end = models.IntegerField(blank=True, null=True)
     gpa = models.DecimalField(max_digits=4, decimal_places=2, blank=True, null=True)
     email = models.TextField(blank=True, null=True)
-    image = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
+    image = models.ImageField(upload_to='student_photos/', blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'student'
+
+    @property
+    def major(self):
+        return "Information System"
 
 
 class Course(models.Model):

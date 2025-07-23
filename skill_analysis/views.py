@@ -1,8 +1,13 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.db import connection
 from django.contrib import messages
-from .models import Student, Skill, StudentSkill, Certificate
+from django.core.paginator import Paginator
+from django.db.models import Q
+from .models import Student, Skill, StudentSkill, Certificate, CompanyRequirement, CompanyRequirementSkill, StudentCompanyChoice
 from django.http import JsonResponse
+import os
+from django.conf import settings
+from django.core.files.storage import FileSystemStorage
 
 def home_student_view(request):
     if 'student_id' not in request.session:
@@ -18,13 +23,183 @@ def course_view(request):
     return render(request, 'skill_analysis/course.html')
 
 def student_view(request):
-    return render(request, 'skill_analysis/student.html')
+    student_id = request.session.get('student_id')
+
+    if not student_id:
+        return redirect('login')
+
+    try:
+        student = Student.objects.get(student_id=student_id)
+    except Student.DoesNotExist:
+        return render(request, 'skill_analysis/student.html', {'error': 'Student not found'})
+
+    student_skills = StudentSkill.objects.filter(student_id=student_id)
+
+    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    company_name = "-"
+    position = "-"
+
+    if internship and internship.company_id:
+        company = CompanyRequirement.objects.filter(cr_id=internship.company_id).first()
+        if company:
+            company_name = company.company_name or "-"
+            position = company.position or "-"
+
+    hard_skills = []
+    soft_skills = []
+
+    for skill in student_skills:
+        if skill.hard_skill:
+            hard_skills.extend([s.strip() for s in skill.hard_skill.split(',') if s.strip()])
+        if skill.soft_skill:
+            soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
+
+    skill_fulfilled = calculate_skill_process(student_id)
+    skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+
+    return render(request, 'skill_analysis/student.html', {
+        'student': student,
+        'hard_skills': hard_skills,
+        'soft_skills': soft_skills,
+        'company_name': company_name,
+        'position': position,
+        'skill_fulfilled_percent': skill_fulfilled,
+        'skill_not_fulfilled_percent': skill_not_fulfilled,
+    })
+
+def update_profile_photo(request):
+    if request.method == 'POST' and request.FILES.get('image'):
+        student_id = request.session.get('student_id')
+        if not student_id:
+            return redirect('login')
+
+        student = Student.objects.get(student_id=student_id)
+        uploaded_file = request.FILES['image']
+
+        fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'student_photos'))
+        filename = fs.save(uploaded_file.name, uploaded_file)
+
+        # Simpan path relatif ke field image
+        student.image = f"/media/student_photos/{filename}"
+        student.save()
+
+        return redirect('student')
+
+    return redirect('student')
 
 def student_icc_view(request):
-    return render(request, 'skill_analysis/student_icc.html')
+    query = request.GET.get('q', '')
+    batch = request.GET.get('batch', '')
 
-def student_data_view(request):
-    return render(request, 'skill_analysis/student_data.html')
+    students = Student.objects.all()
+
+    if query:
+        students = students.filter(
+            Q(full_name__icontains=query) |
+            Q(student_id__icontains=query)
+        )
+
+    if batch:
+        students = students.filter(batch=batch)
+
+    batches = Student.objects.values_list('batch', flat=True).distinct()
+
+    paginator = Paginator(students, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'skill_analysis/student_icc.html', {
+        'students': page_obj,
+        'query': query,
+        'batch': batch,
+        'batches': batches,
+    })
+
+def student_data_view(request, student_id):
+    student = get_object_or_404(Student, student_id=student_id)
+    student_skills = StudentSkill.objects.filter(student_id=student_id)
+
+    # Ambil data pilihan perusahaan dan posisi
+    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    company_name = "-"
+    position = "-"
+
+    if internship and internship.company_id:
+        company = CompanyRequirement.objects.filter(cr_id=internship.company_id).first()
+        if company:
+            company_name = company.company_name or "-"
+            position = company.position or "-"
+
+    # Pisahkan skill
+    hard_skills = []
+    soft_skills = []
+
+    for skill in student_skills:
+        if skill.hard_skill:
+            hard_skills.extend([s.strip() for s in skill.hard_skill.split(',') if s.strip()])
+        if skill.soft_skill:
+            soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
+
+    # Hitung Skill Process
+    skill_fulfilled = calculate_skill_process(student_id)
+    skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+
+    return render(request, 'skill_analysis/student_data.html', {
+        'student': student,
+        'hard_skills': hard_skills,
+        'soft_skills': soft_skills,
+        'company_name': company_name,
+        'position': position,
+        'skill_fulfilled_percent': skill_fulfilled,
+        'skill_not_fulfilled_percent': skill_not_fulfilled,
+    })
+
+
+def calculate_skill_process(student_id):
+    # Ambil company yang dipilih student
+    choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    if not choice or not choice.company_id:
+        return 0.0  # jika belum memilih, return 0
+
+    # Ambil skill requirement dari posisi tersebut
+    requirements = CompanyRequirementSkill.objects.filter(cr_id=choice.company_id)
+    required_skills = [r.skill.skill_name.strip().lower() for r in requirements if r.skill]
+
+    if not required_skills:
+        return 0.0
+
+    # Ambil skill student
+    skills = StudentSkill.objects.filter(student_id=student_id)
+    student_hard = set()
+    student_soft = set()
+
+    for s in skills:
+        if s.hard_skill:
+            student_hard.update([x.strip().lower() for x in s.hard_skill.split(',')])
+        if s.soft_skill:
+            student_soft.update([x.strip().lower() for x in s.soft_skill.split(',')])
+
+    # Ambil skill dari sertifikat
+    cert_skills = set(Certificate.objects.filter(student_id=student_id)
+                      .values_list('skill_name', flat=True))
+    cert_skills = set(x.strip().lower() for x in cert_skills if x)
+
+    # Hitung bobot
+    score = 0
+    bonus = 0
+    max_score = len(required_skills)  # hanya skill yang dihitung
+
+    for skill in required_skills:
+        if skill in student_hard or skill in student_soft:
+            score += 1  # core skill
+            if skill in cert_skills:
+                bonus += 0.5  # sertifikat hanya bonus
+
+    final_score = score + bonus
+    max_total_score = max_score + (0.5 * len(required_skills))  # jika semua skill punya sertifikat
+
+    return round((final_score / max_total_score) * 100, 2)
+
 
 def learning_view(request):
     return render(request, 'skill_analysis/learning.html')

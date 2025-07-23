@@ -76,9 +76,9 @@ WSGI_APPLICATION = 'project_icc.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ICC_Database',
+        'NAME': 'ICC',
         'USER': 'postgres',
-        'PASSWORD': '172005',
+        'PASSWORD': '123',
         'HOST': 'localhost',
         'PORT': '5432',
     }
