@@ -1,3 +1,96 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Internship_desc{% endblock %}
+{% block title %}Apply - {{ company_name }}{% endblock %}
+
+{% block content %}
+<div class="content-box" style="background-color: #C4CAD0;">
+  <h3 class="text-center mb-4">{{ company_name }}</h3>
+
+  <!-- ALERT MESSAGES -->
+  {% if messages %}
+    <div class="alert-box mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label><strong>Position</strong></label>
+      <select class="form-select" id="position-select" onchange="updateFields(this.value)">
+        {% for pos in positions %}
+          <option>{{ pos }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <label><strong>Description</strong></label>
+      <textarea id="description" class="form-control" readonly rows="2"></textarea>
+    </div>
+  </div>
+
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <label><strong>Soft Skill</strong></label>
+      <textarea id="soft" class="form-control" readonly rows="10"></textarea>
+    </div>
+    <div class="col-md-6">
+      <label><strong>Hard Skill</strong></label>
+      <textarea id="hard" class="form-control" readonly rows="10"></textarea>
+    </div>
+  </div>
+
+  <form method="POST" action="{% url 'apply' company_name %}">
+    {% csrf_token %}
+    <!-- Hidden input supaya position yang dipilih ikut dikirim -->
+    <input type="hidden" name="position" id="selected-position" value="">
+
+    <div class="d-flex justify-content-between mt-4">
+      <a href="{% url 'internship' %}" class="btn btn-secondary">Back</a>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#confirmModal">
+        Choose
+      </button>
+    </div>
+
+    <!-- Modal Konfirmasi -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-body text-center">
+            <h5 class="mb-4">Are you sure you want to choose this company?</h5>
+            <div class="d-flex justify-content-between">
+              <button type="button" class="btn btn-danger" data-bs-dismiss="modal">No</button>
+              <button type="submit" class="btn btn-primary">Yes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+    const positionsData = JSON.parse('{{ positions_data|safe|escapejs }}');
+
+    function updateFields(position) {
+        const data = positionsData[position];
+        document.getElementById('description').value = data.desc;
+        document.getElementById('soft').value = data.soft;
+        document.getElementById('hard').value = data.hard;
+        document.getElementById('selected-position').value = position;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const defaultPosition = document.querySelector('#position-select').value;
+        updateFields(defaultPosition);
+    });
+
+    document.getElementById('position-select').addEventListener('change', function() {
+        document.getElementById('selected-position').value = this.value;
+    });
+</script>
+{% endblock %}

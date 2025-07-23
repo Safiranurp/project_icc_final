@@ -6,6 +6,8 @@ from django.db.models import Q
 from .models import Student, Skill, StudentSkill, Certificate, CompanyRequirement, CompanyRequirementSkill, StudentCompanyChoice
 from django.http import JsonResponse
 import os
+import json
+from django.utils.timezone import now
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 
@@ -208,7 +210,9 @@ def skill_icc_view(request):
     return render(request, 'skill_analysis/skill_icc.html')
 
 def internship_view(request):
-    return render(request, 'skill_analysis/internship.html')
+    companies = CompanyRequirement.objects.values_list('company_name', flat=True).distinct()
+    return render(request, 'skill_analysis/internship.html', {'companies': companies})
+
 
 def internship_icc_view(request):
     return render(request, 'skill_analysis/internship_icc.html')
@@ -216,8 +220,78 @@ def internship_icc_view(request):
 def internship_form_view(request):
     return render(request, 'skill_analysis/internship_form.html')
 
-def internship_desc_view(request):
-    return render(request, 'skill_analysis/internship_desc.html')
+def internship_desc_view(request, company_name):
+    company_requirements = CompanyRequirement.objects.filter(company_name=company_name)
+    skills = CompanyRequirementSkill.objects.filter(
+        cr_id__in=company_requirements.values_list('cr_id', flat=True)
+    )
+
+    all_skill_ids = skills.values_list('skill_id', flat=True).distinct()
+    skill_dict = {
+        s.skill_id: s.skill_name
+        for s in Skill.objects.filter(skill_id__in=all_skill_ids)
+    }
+
+    positions_data = {}
+    for req in company_requirements:
+        soft_ids = skills.filter(cr_id=req.cr_id, skill_type__icontains='Soft Skill').values_list('skill_id', flat=True)
+        hard_ids = skills.filter(cr_id=req.cr_id, skill_type__icontains='Hard Skill').values_list('skill_id', flat=True)
+
+        soft_names = [skill_dict.get(skill_id, skill_id) for skill_id in soft_ids]
+        hard_names = [skill_dict.get(skill_id, skill_id) for skill_id in hard_ids]
+
+        positions_data[req.position] = {
+            'desc': req.job_desc,
+            'soft': ', '.join(soft_names),
+            'hard': ', '.join(hard_names),
+            'cr_id': req.cr_id  # simpan cr_id juga untuk simpan ke DB
+        }
+
+        if request.method == "POST":
+            student_id= request.session.get('student_id')
+            position = request.POST.get('position')
+
+        if not student_id:
+            messages.error(request, "You must login first.")
+            return redirect('login')
+
+        if position not in positions_data:
+            messages.error(request, "Invalid position selected.")
+            return redirect('apply', company_name=company_name)
+
+        cr_id = positions_data[position]['cr_id']
+
+        try:
+            existing_choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+            if existing_choice:
+            # Update pilihan lama
+                existing_choice.company_id = cr_id
+                existing_choice.position = position
+                existing_choice.created_at = now()
+                existing_choice.save()
+                messages.success(request, "Your previous choice has been updated.")
+            else:
+            # Buat pilihan baru
+                StudentCompanyChoice.objects.create(
+                    student_id=student_id,
+                    company_id=cr_id,
+                    position=position,
+                    created_at=now()
+                )
+                messages.success(request, "You successfully chose this company.")
+            
+            return redirect('apply', company_name=company_name)
+        
+        except Exception as e:
+            messages.error(request, f"Failed to save your choice: {str(e)}")
+            return redirect('apply', company_name=company_name)
+        
+    context = {
+        'company_name': company_name,
+        'positions': list(positions_data.keys()),
+        'positions_data': json.dumps(positions_data)
+    }
+    return render(request, 'skill_analysis/internship_desc.html', context)
 
 def anaysis_view(request):
     return render(request, 'skill_analysis/analysis.html')

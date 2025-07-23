@@ -1,6 +1,6 @@
 import os
 from django.db import models
-
+from django.utils.timezone import now
 
 from django.db import models
 
@@ -63,6 +63,9 @@ class Skill(models.Model):
     class Meta:
         managed = False
         db_table = 'skill'
+    
+    def __str__(self):
+        return f"{self.skill_type} ({self.skill_id})"
 
 
 class SkillMap(models.Model):
@@ -117,6 +120,9 @@ class CompanyRequirement(models.Model):
     class Meta:
         managed = False
         db_table = 'company_requirement'
+    
+    def __str__(self):
+        return f"{self.company_name} - {self.position}"
 
 
 class CompanyRequirementSkill(models.Model):
@@ -129,6 +135,9 @@ class CompanyRequirementSkill(models.Model):
         managed = False
         db_table = 'company_requirement_skill'
 
+    def __str__(self):
+        return f"{self.cr_id} needs ({self.skill_type})"
+
 
 class StudentCompanyChoice(models.Model):
     id = models.AutoField(primary_key=True)
@@ -140,3 +149,6 @@ class StudentCompanyChoice(models.Model):
     class Meta:
         managed = False
         db_table = 'student_company_choice'
+    
+    def __str__(self):
+        return f'{self.student_name} -> {self.company_name}'
