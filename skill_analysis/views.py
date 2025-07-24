@@ -10,6 +10,20 @@ import json
 from django.utils.timezone import now
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
+import time
+from django.views.decorators.csrf import csrf_exempt
+
+from .train_random_forest import (
+    run_course_recommendation as get_course_recommendations,
+    get_skill_gap_for_student_company, 
+    ModelCache, 
+    _dedupe_recommendations,
+)
+from .models import (
+    Student, StudentSkill, Certificate, 
+    CompanyRequirement, CompanyRequirementSkill, 
+    Skill, Course, StudentCompanyChoice
+)
 
 def home_student_view(request):
     student_id = request.session.get('student_id')
@@ -103,6 +117,7 @@ def home_icc_view(request):
 def course_view(request):
     return render(request, 'skill_analysis/course.html')
 
+
 def student_view(request):
     student_id = request.session.get('student_id')
 
@@ -147,7 +162,7 @@ def student_view(request):
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
     })
-
+    
 def update_profile_photo(request):
     if request.method == 'POST' and request.FILES.get('image'):
         student_id = request.session.get('student_id')
@@ -249,7 +264,7 @@ def calculate_skill_process(student_id):
     if not required_skills:
         return 0.0
 
-    # Ambil skill student
+    # Ambil skill student dari StudentSkill (tanpa sertifikat)
     skills = StudentSkill.objects.filter(student_id=student_id)
     student_hard = set()
     student_soft = set()
@@ -260,30 +275,255 @@ def calculate_skill_process(student_id):
         if s.soft_skill:
             student_soft.update([x.strip().lower() for x in s.soft_skill.split(',')])
 
-    # Ambil skill dari sertifikat
-    cert_skills = set(Certificate.objects.filter(student_id=student_id)
-                      .values_list('skill_name', flat=True))
-    cert_skills = set(x.strip().lower() for x in cert_skills if x)
-
-    # Hitung bobot
+    # Hitung bobot (tanpa mempertimbangkan sertifikat)
     score = 0
-    bonus = 0
-    max_score = len(required_skills)  # hanya skill yang dihitung
+    max_score = len(required_skills)  # 1.0 per skill
 
     for skill in required_skills:
         if skill in student_hard or skill in student_soft:
-            score += 1  # core skill
-            if skill in cert_skills:
-                bonus += 0.5  # sertifikat hanya bonus
+            score += 1.0
 
-    final_score = score + bonus
-    max_total_score = max_score + (0.5 * len(required_skills))  # jika semua skill punya sertifikat
-
-    return round((final_score / max_total_score) * 100, 2)
-
+    return round((score / max_score) * 100, 2)
+def _get_student_for_request(request):
+    """Helper function untuk mengambil student dari session"""
+    student_id = request.session.get('student_id')
+    if not student_id:
+        return None
+    try:
+        return Student.objects.get(student_id=student_id)
+    except Student.DoesNotExist:
+        return None
 
 def learning_view(request):
-    return render(request, 'skill_analysis/learning.html')
+    """
+    Enhanced learning view with course recommendations
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return render(request, 'skill_analysis/learning.html', {
+            'error': 'Student not found. Please login.',
+            'recommendations': [],
+            'skill_gaps': [],
+        })
+
+    # Upload Certificate (existing functionality)
+    if request.method == 'POST' and request.FILES.get('certificate_file'):
+        try:
+            file = request.FILES['certificate_file']
+            skill_type = request.POST.get('skill_type', '')
+            skill_name = request.POST.get('skill_name', '')
+            certificate_name = request.POST.get('certificate_name', file.name)
+
+            if not all([skill_type, skill_name]):
+                messages.error(request, "Skill type and name are required.")
+                return redirect('learning')
+
+            Certificate.objects.create(
+                student_id=student.student_id,
+                file=file,
+                skill_type=skill_type,
+                skill_name=skill_name,
+                certificate_name=certificate_name
+            )
+            # ✅ Invalidate cache after certificate upload
+            ModelCache.invalidate_all(str(student.student_id))
+            messages.success(request, "Certificate uploaded successfully.")
+            return redirect('learning')
+        except Exception as e:
+            messages.error(request, f"Error uploading certificate: {e}")
+            return redirect('learning')
+
+    # ✅ ENHANCED: Get course recommendations and skill gaps
+    try:
+        # Get recommendations using ML function
+        recommendations = get_course_recommendations(str(student.student_id)) or []
+        
+        # Get skill gaps for the student
+        skill_gaps = get_skill_gap_for_student_company(str(student.student_id)) or []
+        
+        # Deduplicate recommendations if needed
+        if recommendations:
+            recommendations = _dedupe_recommendations(recommendations)
+            
+    except Exception as e:
+        print(f"Error getting recommendations: {e}")  # For debugging
+        recommendations = []
+        skill_gaps = []
+        messages.error(request, f"Error loading recommendations: {e}")
+
+    # ✅ ENHANCED: Prepare context with all data
+    context = {
+        'recommendations': recommendations,
+        'skill_gaps': skill_gaps,
+        'student_id': str(student.student_id),
+        'total_recommendations': len(recommendations),
+        'student': student,
+    }
+
+    return render(request, 'skill_analysis/learning.html', context)
+
+def course_recommendations_view(request):
+    """
+    Dedicated view untuk menampilkan halaman rekomendasi course
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return redirect('login')
+    
+    try:
+        # Ambil rekomendasi course menggunakan run_course_recommendation
+        recommendations = get_course_recommendations(str(student.student_id))
+        
+        # Ambil skill gap 
+        skill_gaps = get_skill_gap_for_student_company(str(student.student_id))
+        
+        # Deduplicate recommendations
+        if recommendations:
+            recommendations = _dedupe_recommendations(recommendations)
+        
+        context = {
+            'recommendations': recommendations or [],
+            'skill_gaps': skill_gaps or [],
+            'student_id': str(student.student_id),
+            'total_recommendations': len(recommendations) if recommendations else 0,
+            'student': student,
+        }
+        
+        return render(request, 'skill_analysis/learning.html', context)
+        
+    except Exception as e:
+        context = {
+            'error': f'Gagal memuat rekomendasi: {str(e)}',
+            'recommendations': [],
+            'skill_gaps': [],
+            'student': student,
+        }
+        return render(request, 'skill_analysis/learning.html', context)
+
+def api_course_recommendations(request):
+    """
+    API endpoint untuk mendapat rekomendasi course (JSON response)
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return JsonResponse({'success': False, 'error': 'Student not found'}, status=401)
+        
+    if request.method == 'GET':
+        try:
+            recommendations = get_course_recommendations(str(student.student_id))
+            skill_gaps = get_skill_gap_for_student_company(str(student.student_id))
+            
+            # Deduplicate recommendations
+            if recommendations:
+                recommendations = _dedupe_recommendations(recommendations)
+            
+            return JsonResponse({
+                'success': True,
+                'data': {
+                    'recommendations': recommendations or [],
+                    'skill_gaps': skill_gaps or [],
+                    'total': len(recommendations) if recommendations else 0
+                }
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@csrf_exempt
+def refresh_recommendations(request):
+    """
+    API endpoint untuk refresh/clear cache rekomendasi
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return JsonResponse({'success': False, 'error': 'Student not found'}, status=401)
+        
+    if request.method == 'POST':
+        try:
+            # Clear cache untuk student ini
+            ModelCache.invalidate_all(str(student.student_id))
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Cache berhasil di-refresh. Rekomendasi akan diperbarui.'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+    
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+def delete_certificate_learning(request, certificate_id):
+    student = _get_student_for_request(request)
+    if not student:
+        return redirect('login')
+        
+    try:
+        cert = get_object_or_404(Certificate, pk=certificate_id, student_id=student.student_id)
+        if cert.file:
+            cert.file.delete(save=False)
+        cert.delete()
+        # ✅ FIXED: Invalidate cache with correct student_id type
+        ModelCache.invalidate_all(str(student.student_id))
+        messages.success(request, "Certificate deleted successfully.")
+    except Exception as e:
+        messages.error(request, f"Error deleting certificate: {e}")
+        
+    return redirect('learning')
+
+def upload_certificate_learning(request):
+    """Handle certificate upload in learning page"""
+    student = _get_student_for_request(request)
+    if not student:
+        return redirect('login')
+
+    if request.method == 'POST':
+        try:
+            file = request.FILES.get('certificate_file')
+            skill_type = request.POST.get('skill_type', '')
+            skill_name = request.POST.get('skill_name', '')
+            certificate_name = request.POST.get('certificate_name', '')
+
+            if not file:
+                messages.error(request, "Please select a file to upload.")
+                return redirect('learning')
+
+            if not all([skill_type, skill_name]):
+                messages.error(request, "Skill type and name are required.")
+                return redirect('learning')
+
+            if not certificate_name:
+                certificate_name = file.name
+
+            Certificate.objects.create(
+                student_id=student.student_id,
+                file=file,
+                skill_type=skill_type,
+                skill_name=skill_name,
+                certificate_name=certificate_name
+            )
+            
+            # ✅ Invalidate cache after certificate upload
+            ModelCache.invalidate_all(str(student.student_id))
+            messages.success(request, "Certificate uploaded successfully.")
+            
+        except Exception as e:
+            messages.error(request, f"Error uploading certificate: {e}")
+    
+    return redirect('learning')
+
+def recommendations_api(request):
+    """Legacy API endpoint - redirects to new API"""
+    return api_course_recommendations(request)
+
 
 def skill_icc_view(request):
     return render(request, 'skill_analysis/skill_icc.html')
@@ -803,3 +1043,99 @@ def update_intern(request, cr_id):
         return redirect('internship_icc')
 
     return redirect('internship_icc')
+
+def clear_student_cache(request):
+    """
+    Utility view to clear all cache for current student
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return JsonResponse({'success': False, 'error': 'Student not found'}, status=401)
+    
+    try:
+        ModelCache.invalidate_all(str(student.student_id))
+        
+        if request.headers.get('Accept') == 'application/json':
+            return JsonResponse({
+                'success': True,
+                'message': 'Cache cleared successfully'
+            })
+        else:
+            messages.success(request, 'Cache cleared successfully')
+            return redirect(request.META.get('HTTP_REFERER', 'learning'))
+            
+    except Exception as e:
+        if request.headers.get('Accept') == 'application/json':
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+        else:
+            messages.error(request, f'Error clearing cache: {e}')
+            return redirect(request.META.get('HTTP_REFERER', 'learning'))
+
+def get_student_learning_data(request):
+    """
+    Comprehensive API to get all student learning data
+    """
+    student = _get_student_for_request(request)
+    if not student:
+        return JsonResponse({'success': False, 'error': 'Student not found'}, status=401)
+    
+    try:
+        # Get all learning related data
+        recommendations = get_course_recommendations(str(student.student_id)) or []
+        skill_gaps = get_skill_gap_for_student_company(str(student.student_id)) or []
+        certificates = Certificate.objects.filter(student_id=student.student_id)
+        
+        # Get student skills
+        student_skills = StudentSkill.objects.filter(student_id=student.student_id).first()
+        hard_skills = []
+        soft_skills = []
+        
+        if student_skills:
+            if student_skills.hard_skill:
+                hard_skills = [s.strip() for s in student_skills.hard_skill.split(',') if s.strip()]
+            if student_skills.soft_skill:
+                soft_skills = [s.strip() for s in student_skills.soft_skill.split(',') if s.strip()]
+        
+        # Prepare certificates data
+        certificates_data = []
+        for cert in certificates:
+            certificates_data.append({
+                'id': cert.pk,
+                'name': cert.certificate_name,
+                'skill_type': cert.skill_type,
+                'skill_name': cert.skill_name,
+                'file_url': cert.file.url if cert.file else None
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'data': {
+                'student': {
+                    'id': student.student_id,
+                    'name': student.full_name,
+                    'email': student.email
+                },
+                'recommendations': recommendations,
+                'skill_gaps': skill_gaps,
+                'skills': {
+                    'hard_skills': hard_skills,
+                    'soft_skills': soft_skills
+                },
+                'certificates': certificates_data,
+                'stats': {
+                    'total_recommendations': len(recommendations),
+                    'high_priority_recommendations': len([r for r in recommendations if r.get('priority') == 'High']),
+                    'skill_gaps_count': len(skill_gaps),
+                    'certificates_count': len(certificates_data)
+                }
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

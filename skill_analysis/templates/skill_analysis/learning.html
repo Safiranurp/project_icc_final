@@ -1,3 +1,359 @@
 {% extends "base_student.html" %}
 
-{% block title %}Learning{% endblock %}
+{% block title %}Rekomendasi Course - Learning Platform{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    :root {
+      --primary: #555879;
+      --secondary: #98A1BC;
+      --light: #C4CAD0;
+      --background: #E6E0D4;
+    }
+
+    /* Custom styles to work with base template */
+    .main {
+        background-color: var(--background) !important;
+    }
+    
+    /* Override Tailwind reset conflicts */
+    .content-area {
+        font-family: Arial, sans-serif;
+    }
+
+    /* Custom color theme overrides */
+    .bg-blue-600 {
+        background-color: var(--primary) !important;
+    }
+    
+    .hover\:bg-blue-700:hover {
+        background-color: #4a4e6b !important;
+    }
+    
+    .text-blue-600 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-blue-50 {
+        background-color: rgba(85, 88, 121, 0.1) !important;
+    }
+    
+    .text-blue-700 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-blue-100 {
+        background-color: rgba(85, 88, 121, 0.15) !important;
+    }
+    
+    .text-blue-800 {
+        color: #3a3d52 !important;
+    }
+    
+    /* Secondary color applications */
+    .border-l-4.border-yellow-400 {
+        border-left-color: var(--secondary) !important;
+    }
+    
+    .bg-yellow-50 {
+        background-color: rgba(152, 161, 188, 0.1) !important;
+    }
+    
+    .text-yellow-800 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-yellow-200 {
+        background-color: var(--light) !important;
+    }
+    
+    .text-yellow-700 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-yellow-500 {
+        background-color: var(--secondary) !important;
+    }
+    
+    .bg-yellow-600 {
+        background-color: var(--secondary) !important;
+    }
+    
+    /* Light color applications */
+    .bg-gray-100 {
+        background-color: var(--light) !important;
+    }
+    
+    .text-gray-700 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-gray-300 {
+        color: var(--secondary) !important;
+    }
+    
+    /* Green colors using secondary palette */
+    .text-green-700 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-green-100 {
+        background-color: rgba(152, 161, 188, 0.15) !important;
+    }
+    
+    .text-green-800 {
+        color: var(--primary) !important;
+    }
+    
+    .text-green-500 {
+        color: var(--secondary) !important;
+    }
+    
+    .bg-green-50 {
+        background-color: rgba(152, 161, 188, 0.1) !important;
+    }
+    
+    .text-green-600 {
+        color: var(--primary) !important;
+    }
+    
+    .bg-green-600 {
+        background-color: var(--secondary) !important;
+    }
+    
+    /* Card and content backgrounds */
+    .bg-white {
+        background-color: #ffffff !important;
+        border: 1px solid var(--light);
+    }
+    
+    .shadow-md {
+        box-shadow: 0 4px 6px -1px rgba(85, 88, 121, 0.1), 0 2px 4px -1px rgba(85, 88, 121, 0.06) !important;
+    }
+    
+    .hover\:shadow-lg:hover {
+        box-shadow: 0 10px 15px -3px rgba(85, 88, 121, 0.1), 0 4px 6px -2px rgba(85, 88, 121, 0.05) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-area">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-800">
+                    <i class="fas fa-graduation-cap text-blue-600 mr-2"></i>
+                    Course Recommendations
+                </h1>
+                <p class="text-gray-600 mt-2">Learning path</p>
+            </div>
+            <button onclick="refreshRecommendations()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                <i class="fas fa-sync-alt mr-2"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Skill Gap Section -->
+    {% if skill_gaps %}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r-lg">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+            </div>
+            <div class="ml-3">
+                <h3 class="text-lg font-medium text-yellow-800">Skills yang Perlu Dikembangkan</h3>
+                <div class="mt-2 text-sm text-yellow-700">
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        {% for skill in skill_gaps %}
+                        <span class="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Error Message -->
+    {% if error %}
+    <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <i class="fas fa-exclamation-circle text-red-400"></i>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-red-700">{{ error }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recommendations Grid -->
+    {% if recommendations %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for rec in recommendations|slice:":6" %}
+        <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+            <!-- Priority Badge -->
+            <div class="relative">
+                <div class="absolute top-4 right-4 z-10">
+                    {% if rec.priority == 'High' %}
+                        <span class="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                            <i class="fas fa-fire mr-1"></i>High Priority
+                        </span>
+                    {% elif rec.priority == 'Medium' %}
+                        <span class="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                            <i class="fas fa-star mr-1"></i>Medium
+                        </span>
+                    {% else %}
+                        <span class="bg-gray-500 text-white px-2 py-1 rounded-full text-xs font-semibold">
+                            <i class="fas fa-circle mr-1"></i>Low
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <!-- Course Header -->
+                <div class="p-6 pb-4">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2 pr-24">{{ rec.course_name }}</h3>
+                    <p class="text-sm text-gray-600 mb-2">{{ rec.course_category }}</p>
+                    <p class="text-sm text-gray-500">{{ rec.description }}</p>
+                </div>
+            </div>
+
+            <!-- Course Details -->
+            <div class="px-6 pb-6">
+                <!-- Score and Difficulty -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex items-center">
+                        <span class="text-2xl font-bold text-blue-600">{{ rec.score }}</span>
+                        <span class="text-sm text-gray-500 ml-1">/3.0</span>
+                    </div>
+                    <span class="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
+                        {{ rec.difficulty_level }}
+                    </span>
+                </div>
+
+                <!-- Skills Coverage -->
+                {% if rec.covers_skills %}
+                <div class="mb-3">
+                    <h4 class="text-sm font-semibold text-green-700 mb-2">
+                        <i class="fas fa-plus-circle mr-1"></i>Skills Baru:
+                    </h4>
+                    <div class="flex flex-wrap gap-1">
+                        {% for skill in rec.covers_skills %}
+                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Skills Reinforcement -->
+                {% if rec.reinforces_skills %}
+                <div class="mb-3">
+                    <h4 class="text-sm font-semibold text-blue-700 mb-2">
+                        <i class="fas fa-shield-alt mr-1"></i>Skills Diperkuat:
+                    </h4>
+                    <div class="flex flex-wrap gap-1">
+                        {% for skill in rec.reinforces_skills %}
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Reasons -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-lightbulb mr-1"></i>Kenapa Direkomendasikan:
+                    </h4>
+                    <ul class="text-xs text-gray-600 space-y-1">
+                        {% for reason in rec.reasons %}
+                        <li class="flex items-start">
+                            <i class="fas fa-check text-green-500 mr-2 mt-0.5 flex-shrink-0"></i>
+                            <span>{{ reason }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="mt-8 bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-bar text-green-600 mr-2"></i>Ringkasan Rekomendasi
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-blue-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-blue-600">{{ total_recommendations }}</div>
+                <div class="text-sm text-blue-700">Total Course</div>
+            </div>
+            <div class="bg-red-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-red-600">
+                    {% widthratio recommendations|length 1 3 %}
+                </div>
+                <div class="text-sm text-red-700">High Priority</div>
+            </div>
+            <div class="bg-yellow-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-yellow-600">{{ skill_gaps|length }}</div>
+                <div class="text-sm text-yellow-700">Skill Gaps</div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- No Recommendations -->
+    <div class="bg-white rounded-lg shadow-md p-12 text-center">
+        <i class="fas fa-graduation-cap text-6xl text-gray-300 mb-4"></i>
+        <h3 class="text-xl font-semibold text-gray-600 mb-2">Belum Ada Rekomendasi</h3>
+        <p class="text-gray-500 mb-6">Lengkapi profil dan skills Anda untuk mendapat rekomendasi yang lebih baik.</p>
+        <button onclick="refreshRecommendations()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+            <i class="fas fa-sync-alt mr-2"></i>Coba Lagi
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<!-- CSRF Token for AJAX requests -->
+{% csrf_token %}
+
+<script>
+    function refreshRecommendations() {
+        // Show loading
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+        button.disabled = true;
+
+        fetch('/learning/api/refresh-recommendations/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Reload page to show new recommendations
+                window.location.reload();
+            } else {
+                alert('Error: ' + data.error);
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Terjadi kesalahan saat refresh rekomendasi');
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

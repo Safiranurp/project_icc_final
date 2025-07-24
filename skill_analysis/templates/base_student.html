@@ -125,8 +125,8 @@
       <a href="{% url 'student' %}" class="{% if request.path == '/student/' %}active{% endif %}">
         <i class="bi bi-person-fill"></i> Student
       </a>
-      <a href="{% url 'skill' %}" class="{% if request.path == '/skill/' %}active{% endif %}">
-        <i class="bi bi-bar-chart-fill"></i> Skill
+      <a href="{% url 'skill' %}" class="{% if request.path  == 'skill' %}active{% endif %}">
+        <i class="bi bi-gear-fill"></i> Skill
       </a>
       <a href="{% url 'learning' %}" class="{% if request.path == '/learning/' %}active{% endif %}">
         <i class="bi bi-bar-chart-fill"></i> Learning
