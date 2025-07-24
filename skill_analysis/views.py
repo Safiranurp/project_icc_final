@@ -12,6 +12,9 @@ from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 import time
 from django.views.decorators.csrf import csrf_exempt
+from django.db.models import Count
+from django.db.models.functions import ExtractYear
+from collections import defaultdict
 
 from .train_random_forest import (
     run_course_recommendation as get_course_recommendations,
@@ -112,7 +115,123 @@ def home_icc_view(request):
         'hard_skill_data': hard_skill_data
     })
 
+def analysis_view(request):
+    # Ambil semua tahun unik dari created_at
+    all_years = StudentCompanyChoice.objects.annotate(
+        year=ExtractYear('created_at')
+    ).values_list('year', flat=True).distinct().order_by('-year')
 
+    # Tahun terbaru
+    latest_year = all_years[0] if all_years else None
+
+    # === Filter tahun masing-masing card ===
+    year_position = request.GET.get('year_position') or latest_year
+    year_company = request.GET.get('year_company') or latest_year
+    year_list_of_position = request.GET.get('year_list_of_position') or latest_year
+    trend_years = request.GET.getlist('trend_years')
+
+    # Jika trend_years tidak dipilih, default ke 3 tahun terbaru
+    if not trend_years:
+        recent_years = list(all_years)[:3]
+        trend_years = [str(y) for y in recent_years]
+
+    # === MOST POPULAR POSITION ===
+    most_position_data = []
+    if year_position:
+        choices = StudentCompanyChoice.objects.filter(created_at__year=year_position)
+        total_choices = choices.count()
+        positions = choices.values('position').annotate(count=Count('position')).order_by('-count')[:5]
+
+        for item in positions:
+            percent = round((item['count'] / total_choices) * 100, 1) if total_choices > 0 else 0
+            most_position_data.append({
+                'position': item['position'],
+                'label': f"{item['count']} Student – {percent}% Applicants"
+            })
+
+    # === MOST POPULAR COMPANY ===
+    most_company_data = []
+    if year_company:
+        choices = StudentCompanyChoice.objects.filter(created_at__year=year_company)
+        total_choices = choices.count()
+        companies = choices.values('company__company_name').annotate(count=Count('company')).order_by('-count')[:5]
+
+        for item in companies:
+            percent = round((item['count'] / total_choices) * 100, 1) if total_choices > 0 else 0
+            most_company_data.append({
+                'company__company_name': item['company__company_name'],
+                'label': f"{item['count']} Student – {percent}% Applicants"
+            })
+
+    # === TREND LINE ===
+    chart_labels = []
+    chart_counts = []
+    chart_tooltips = []
+
+    for y in trend_years:
+        count = StudentCompanyChoice.objects.filter(created_at__year=y).count()
+        chart_labels.append(str(y))
+        chart_counts.append(count)
+        chart_tooltips.append(f"{count} students")
+
+    # === COMPANY & POSITION LIST ===
+    companies = CompanyRequirement.objects \
+        .exclude(company_name__isnull=True) \
+        .values_list('company_name', flat=True) \
+        .distinct()
+
+    selected_company = request.GET.get('company') or (companies[0] if companies else None)
+
+    positions = []
+    position_data = []
+
+    if selected_company:
+        # Ambil daftar posisi dari CompanyRequirement
+        positions = CompanyRequirement.objects.filter(company_name=selected_company) \
+            .exclude(position__isnull=True).values_list('position', flat=True).distinct()
+
+        # Ambil data student yang memilih company tersebut pada tahun terpilih
+        student_choices = StudentCompanyChoice.objects.filter(
+            company__company_name=selected_company,
+            created_at__year=year_list_of_position  # filter tahun
+        )
+        total_students = student_choices.count()
+
+        position_counts = defaultdict(int)
+        for sc in student_choices:
+            if sc.position:
+                position_counts[sc.position] += 1
+
+        for pos in positions:
+            count = position_counts.get(pos, 0)
+            percent = round((count / total_students) * 100, 1) if total_students > 0 else 0
+            position_data.append({
+                'position': pos,
+                'count': count,
+                'percent': percent
+            })
+
+    return render(request, 'skill_analysis/analysis.html', {
+        # Tahun untuk filter masing-masing card
+        'all_years': all_years,
+        'year_position': int(year_position) if year_position else None,
+        'year_company': int(year_company) if year_company else None,
+        'year_list_of_position': int(year_list_of_position) if year_list_of_position else None,
+        'selected_trend_years': [int(y) for y in trend_years],
+
+        # Data untuk 3 card utama
+        'most_position_data': most_position_data,
+        'most_company_data': most_company_data,
+        'chart_labels': chart_labels,
+        'chart_counts': chart_counts,
+        'chart_tooltips': chart_tooltips,
+
+        # Data untuk card list of positions
+        'companies': companies,
+        'selected_company': selected_company,
+        'positions': positions,
+        'position_data': position_data,
+    })
 
 def course_view(request):
     return render(request, 'skill_analysis/course.html')
