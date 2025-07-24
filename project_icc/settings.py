@@ -77,9 +77,9 @@ WSGI_APPLICATION = 'project_icc.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ICC_Database',
+        'NAME': 'ICC',
         'USER': 'postgres',
-        'PASSWORD': '172005',
+        'PASSWORD': '1234',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -123,7 +123,7 @@ USE_TZ = False
 STATIC_URL = 'static/'
 
 import os
-STATICFILES_DIRS = [os.path.join(BASE_DIR, 'skill_analysis/static')]
+STATICFILES_DIRS = [os.path.join(BASE_DIR, 'skill_analysis')]
 
 
 # Default primary key field type

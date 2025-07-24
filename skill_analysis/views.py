@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q, Count, Exists, OuterRef  
 from .models import Student, Skill, StudentSkill, Certificate, CompanyRequirement, CompanyRequirementSkill, StudentCompanyChoice
-from django.http import JsonResponse, HttpResponseNotFound
+from django.http import Http404, JsonResponse, HttpResponseNotFound
 import os
 import json
 from django.utils.timezone import now
@@ -292,12 +292,6 @@ def internship_view(request):
     companies = CompanyRequirement.objects.values_list('company_name', flat=True).distinct()
     return render(request, 'skill_analysis/internship.html', {'companies': companies})
 
-
-def internship_icc_view(request):
-    return render(request, 'skill_analysis/internship_icc.html')
-
-def internship_form_view(request):
-    return render(request, 'skill_analysis/internship_form.html')
 def internship_desc_view(request, company_name):
     company_requirements = CompanyRequirement.objects.filter(company_name=company_name)
     skills = CompanyRequirementSkill.objects.filter(
@@ -547,3 +541,265 @@ def delete_certificate(request, c_id):
 def logout_view(request):
     request.session.flush()
     return redirect('login')
+
+
+
+def skill_list(request):
+    skills = Skill.objects.all()
+    skill_types = Skill.objects.values_list('skill_type', flat=True).distinct()
+
+    search_query = request.GET.get('search')
+    type_query = request.GET.get('type')
+
+    if search_query:
+        skills = skills.filter(skill_name__icontains=search_query)
+
+    if type_query:
+        skills = skills.filter(skill_type=type_query)
+
+    return render(request, 'skill_analysis/skill_icc.html', {
+        'skills': skills,
+        'skill_types': skill_types,
+    })
+
+
+def generate_next_skill_id():
+    last = Skill.objects.aggregate(Max('skill_id'))['skill_id__max']
+    if last:
+        number = int(re.search(r'\d+', last).group())
+        return f"SK{number + 1:03d}"
+    else:
+        return "SK001"
+
+
+def add_skill_icc(request):
+    if request.method == 'POST':
+        skill_type = request.POST.get('skillType')
+        skill_name = request.POST.get('skillName')
+        skill_id = generate_next_skill_id()
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO skill (skill_id, skill_name, skill_type) VALUES (%s, %s, %s)",
+                [skill_id, skill_name, skill_type]
+            )
+
+        return redirect('skill_icc')
+    else:
+        return redirect('skill_icc')
+
+    
+
+def showIntern(request): 
+    cr_id = CompanyRequirement.objects.all()
+    internships = CompanyRequirement.objects.all()
+    positions = CompanyRequirement.objects.values_list('position', flat=True).distinct()
+    search_query = request.GET.get('search', '')
+    position_query = request.GET.get('position', '')
+
+    if search_query:
+        internships = internships.filter(company_name__icontains=search_query)
+    if position_query:
+        internships = internships.filter(position=position_query)
+
+    positions = CompanyRequirement.objects.values_list('position', flat=True).distinct()
+
+    return render(request, 'skill_analysis/internship_icc.html', {
+        'cr_id' : cr_id,
+        'internships': internships,
+        'positions': positions,
+    })
+
+
+def delete_intern(request, cr_id):
+    try:
+        CompanyRequirementSkill.objects.filter(cr_id=cr_id).delete()
+
+        CompanyRequirement.objects.filter(cr_id=cr_id).delete()
+
+        messages.success(request, "Internship data successfully deleted.")
+    except Exception as e:
+        messages.error(request, f"Failed to delete: {e}")
+    
+    return redirect('internship_icc')
+
+
+
+def skill_internForm(request):
+    hard_skills = Skill.objects.filter(skill_type='Hard Skill')
+    soft_skills = Skill.objects.filter(skill_type='Soft Skill')
+
+    return render(request, 'skill_analysis/internship_form_icc.html', {
+        'hard_skills': hard_skills,
+        'soft_skills': soft_skills,
+    })
+
+
+def generate_next_cr_id():
+    last = CompanyRequirement.objects.aggregate(Max('cr_id'))['cr_id__max']
+    if last:
+        number = int(re.search(r'\d+', last).group())
+        return f"CR{number + 1:04d}"
+    else:
+        return "CR0001"
+
+def generate_next_crs_id():
+    last = CompanyRequirementSkill.objects.aggregate(Max('crs_id'))['crs_id__max']
+    if last:
+        number = int(re.search(r'\d+', last).group())
+        return f"CRS{number + 1:04d}"
+    else:
+        return "CRS0001"
+
+
+def submit_intern(request):
+    if request.method == 'POST':
+        company_name = request.POST.get('companyName')
+        position = request.POST.get('positionName')
+        job_desc = request.POST.get('desc')
+
+        new_cr_id = generate_next_cr_id()
+
+        new_requirement = CompanyRequirement.objects.create(
+            cr_id=new_cr_id,
+            company_name=company_name,
+            position=position,
+            job_desc=job_desc
+        )
+
+        # Ambil list skill ID dari form
+        hard_skill_ids = request.POST.getlist('hardSkills[]')  
+        soft_skill_ids = request.POST.getlist('softSkills[]')  
+        
+        all_skill_ids = hard_skill_ids + soft_skill_ids
+
+        for skill_id in all_skill_ids:
+            try:
+                skill_obj = Skill.objects.get(skill_id=skill_id)
+                CompanyRequirementSkill.objects.create(
+                    crs_id=generate_next_crs_id(),
+                    cr=new_requirement,
+                    skill=skill_obj,
+                    skill_type=skill_obj.skill_type 
+                )
+            except Skill.DoesNotExist:
+                continue 
+
+        return redirect('internship_icc')
+    hard_skills = Skill.objects.filter(skill_type='Hard Skill')
+    soft_skills = Skill.objects.filter(skill_type='Soft Skill')
+
+    return render(request, 'skill_analysis/internship_form_icc.html', {
+        'hard_skills': hard_skills,
+        'soft_skills': soft_skills,
+    })
+
+from django.db.models import Max
+import re
+
+def generate_new_crs_id():
+    last_crs = CompanyRequirementSkill.objects.order_by('-crs_id').first()
+    if last_crs and last_crs.crs_id:
+        match = re.search(r'\d+', last_crs.crs_id)
+        if match:
+            num = int(match.group()) + 1
+            return f"CRS{num:04d}"
+    return "CRS0001"
+
+
+def edit_intern(request, cr_id):
+    try:
+        internship = CompanyRequirement.objects.get(cr_id=cr_id)
+    except CompanyRequirement.DoesNotExist:
+        raise Http404("Data Not Found")
+
+    hard_skills = Skill.objects.filter(skill_type='Hard Skill')
+    soft_skills = Skill.objects.filter(skill_type='Soft Skill')
+
+    selected_skills = CompanyRequirementSkill.objects.filter(cr=internship)
+    selected_hard = [s.skill.skill_id for s in selected_skills if s.skill.skill_type == 'Hard Skill']
+    selected_soft = [s.skill.skill_id for s in selected_skills if s.skill.skill_type == 'Soft Skill']
+
+    if request.method == 'POST':
+        internship.company_name = request.POST.get('company_name')
+        internship.position = request.POST.get('position')
+        internship.job_desc = request.POST.get('job_desc') 
+        internship.save()
+
+        CompanyRequirementSkill.objects.filter(cr=internship).delete()
+
+        hard_ids = request.POST.getlist('hard_skills[]')
+        soft_ids = request.POST.getlist('soft_skills[]')
+
+        for skill_id in hard_ids:
+            skill = Skill.objects.get(skill_id=skill_id)
+            new_crs_id = generate_new_crs_id()
+            CompanyRequirementSkill.objects.create(
+                crs_id=new_crs_id,
+                cr=internship,
+                skill=skill,
+                skill_type=skill.skill_type
+            )
+
+        for skill_id in soft_ids:
+            skill = Skill.objects.get(skill_id=skill_id)
+            new_crs_id = generate_new_crs_id()
+            CompanyRequirementSkill.objects.create(
+                crs_id=new_crs_id,
+                cr=internship,
+                skill=skill,
+                skill_type=skill.skill_type
+            )
+
+        messages.success(request, 'Internship updated successfully.')
+        return redirect('internship_icc')
+
+    context = {
+        'internship': internship,
+        'hard_skills': hard_skills,
+        'soft_skills': soft_skills,
+        'selected_hard': selected_hard,
+        'selected_soft': selected_soft,
+    }
+    return render(request, 'skill_analysis/internship_edit_icc.html', context)
+
+
+
+
+def update_intern(request, cr_id):
+    company_req = get_object_or_404(CompanyRequirement, cr_id=cr_id)
+
+    if request.method == 'POST':
+        company_req.company_name = request.POST.get('companyName')
+        company_req.position = request.POST.get('positionName')
+        company_req.job_desc = request.POST.get('job_desc')
+        company_req.save()
+
+        new_hard_skills = request.POST.getlist('hardSkills[]')
+        new_soft_skills = request.POST.getlist('softSkills[]')
+
+        CompanyRequirementSkill.objects.filter(cr=company_req).delete()
+
+        for skill_id in new_hard_skills:
+            skill = Skill.objects.get(skill_id=skill_id)
+            new_crs_id = generate_new_crs_id()
+            CompanyRequirementSkill.objects.create(
+                crs_id=new_crs_id,
+                cr=company_req,
+                skill=skill,
+                skill_type='Hard Skill'
+            )
+
+        for skill_id in new_soft_skills:
+            skill = Skill.objects.get(skill_id=skill_id)
+            new_crs_id = generate_new_crs_id()
+            CompanyRequirementSkill.objects.create(
+                crs_id=new_crs_id,
+                cr=company_req,
+                skill=skill,
+                skill_type='Soft Skill'
+            )
+
+        return redirect('internship_icc')
+
+    return redirect('internship_icc')

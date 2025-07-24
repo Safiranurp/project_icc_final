@@ -1,7 +1,126 @@
 {% extends "base.html" %}
 
-{% block title %}skill_icc{% endblock %}
+{% block title %}List Skill{% endblock %}
 
-<h1>
-    skill _icc
-</h1>
+{% block content %}
+<div class="content-box">
+  <h2>List Skill</h2>
+
+  <!-- Search and Add New -->
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <form method="get" action="{% url 'skill_icc' %}" class="d-flex flex-wrap align-items-center gap-2 mb-0 flex-grow-1">
+      <input type="text" name="search" class="form-control" placeholder="Search skill..." style="max-width: 250px;" value="{{ request.GET.search }}">
+      <select name="type" class="form-select" style="max-width: 200px;">
+        <option value="">All Types</option>
+          {% for type in skill_types %}
+            <option value="{{ type }}" {% if request.GET.type == type %}selected{% endif %}>{{ type }}</option>
+          {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+    </form>
+
+
+    <a href="javascript:void(0);" onclick="toggleAddSkillCard();" class="btn btn-secondary ms-auto">Add New</a>
+  </div>
+
+  <table class="table table-bordered mt-3">
+    <thead>
+      <tr>
+        <th>Skill's Name</th>
+        <th>Skill's Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for skill in skills %}
+      <tr>
+        <td>{{ skill.skill_name }}</td>
+        <td>{{ skill.skill_type }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="2">No skills available.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Overlay (hidden by default) -->
+<div id="overlay" style="
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  z-index: 1040;">
+</div>
+
+<!-- Floating Card Form (Notification style) -->
+<div id="addSkillCard" class="card shadow" style="
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px; /* lebar lebih besar */
+  max-width: 90%; /* responsif jika layar kecil */
+  z-index: 1050;">
+
+  <div class="card-body">
+    <h5 class="card-title">Add New Skill</h5>
+    <form method="post" action="{% url 'add_skill_icc' %}">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label for="skillType" class="form-label">Skill Type</label>
+        <select class="form-select" id="skillType" name="skillType" required>
+          <option value="">-- Select Skill Type --</option>
+          <option value="Hard Skill">Hard Skill</option>
+          <option value="Soft Skill">Soft Skill</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label for="skillName" class="form-label">Skill Name</label>
+        <input type="text" class="form-control" id="skillName" name="skillName" required>
+      </div>
+      <div class="d-flex justify-content-between">
+        <button type="button" class="btn btn-secondary" onclick="toggleAddSkillCard();">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const searchInput = document.getElementById('searchInput');
+  const typeSelect = document.getElementById('typeSelect');
+  const searchBtn = document.getElementById('searchBtn');
+
+  function toggleButton() {
+    if (searchInput.value.trim() !== '' || typeSelect.value !== '') {
+      searchBtn.disabled = false;
+    } else {
+      searchBtn.disabled = true;
+    }
+  }
+
+  searchInput.addEventListener('input', toggleButton);
+  typeSelect.addEventListener('change', toggleButton);
+</script>
+
+<script>
+  function toggleAddSkillCard() {
+    const card = document.getElementById('addSkillCard');
+    const overlay = document.getElementById('overlay');
+    if (card.style.display === "none") {
+      card.style.display = "block";
+      overlay.style.display = "block";
+    } else {
+      card.style.display = "none";
+      overlay.style.display = "none";
+    }
+  }
+  document.getElementById('overlay').addEventListener('click', function(){
+    toggleAddSkillCard();
+  });
+</script>
+{% endblock %}

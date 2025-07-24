@@ -2,6 +2,60 @@
 
 {% block title %}internship_icc{% endblock %}
 
-<h1>
-    internship _icc
-</h1>
+{% block content %}
+
+<div class="content-box">
+  <h1> internship _icc</h1>
+
+
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <form method="get" class="d-flex flex-wrap align-items-center gap-2 mb-0 flex-grow-1">
+      <input type="text" name="search" class="form-control" placeholder="Search company..." style="max-width: 250px;" value="{{ request.GET.search }}">
+      <select name="position" class="form-select" style="max-width: 200px;">
+        <option value="">All Positions</option>
+        {% for pos in positions %}
+          <option value="{{ pos }}" {% if request.GET.position == pos %}selected{% endif %}>{{ pos }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i></button>
+    </form>
+    <a href="{% url 'intern_form' %}" class="btn btn-secondary ms-auto">Add New</a>
+  </div>
+
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Company's Name</th>
+        <th>Position</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for internship in internships %}
+      <tr>
+        <td>{{ internship.cr_id }}</td>
+        <td>{{ internship.company_name }}</td>
+        <td>{{ internship.position }}</td>
+        <td>
+          <!-- Edit Button: Link to edit page -->
+          <a href="{% url 'edit_intern' internship.cr_id %}" class="btn btn-warning">Edit</a>
+
+          <!-- Delete Button -->
+          <a href="{% url 'delete_intern' internship.cr_id %}" 
+             class="btn btn-sm btn-danger"
+             onclick="return confirm('Are you sure you want to delete this internship data?');">
+            Delete
+          </a>
+        </td>
+      </tr>
+    {% empty %}
+      <tr>
+        <td colspan="4" class="text-center">No internships found.</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

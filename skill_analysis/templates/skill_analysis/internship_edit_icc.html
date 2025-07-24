@@ -1,7 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}internship_form_icc{% endblock %}
-
+{% extends 'base.html' %}
+{% block title %}Edit Internship Vacancy{% endblock %}
 {% block content %}
 
 <!-- Select2 CSS -->
@@ -59,7 +57,7 @@
     background-color: #d9534f;
     color: white;
   }
-  .btn-add {
+  .btn-update {
     background-color: #4a4e8e;
     color: white;
   }
@@ -67,54 +65,57 @@
 
 <div style="text-align: left !important; margin-bottom: 10px;">
     <a href="{% url 'internship_icc' %}" class="btn btn-secondary">
-      <i class="bi bi-arrow-left"></i> Back
+        <i class="bi bi-arrow-left"></i> Back
     </a>
 </div>
 <div class="container">
-  <h2>ADD INTERNSHIP VACANCY</h2>
-    <form method="post" action="{% url 'submit_intern' %}" onsubmit="return confirmSubmission()">
+  <h2>EDIT INTERNSHIP VACANCY</h2>
+  <form method="post" action="{% url 'edit_intern' internship.cr_id %}" onsubmit="return confirm('Are you sure you want to edit this internship data?')">
     {% csrf_token %}
 
     <div class="form-group">
       <label for="companyName">Company’s Name :</label>
-      <input type="text" id="companyName" name="companyName">
+      <input type="text" id="companyName" name="company_name" value="{{ internship.company_name }}" required>
     </div>
 
     <div class="form-group">
       <label for="positionName">Position Name :</label>
-      <input type="text" id="positionName" name="positionName">
+      <input type="text" id="positionName" name="position" value="{{ internship.position }}" required>
     </div>
 
     <div class="form-group">
       <label for="hardSkills">Hard Skills :</label>
-      <select id="hardSkills" name="hardSkills[]" multiple class="select2">
+      <select id="hardSkills" name="hard_skills[]" multiple class="select2">
         {% for hskill in hard_skills %}
-          <option value="{{ hskill.skill_id }}">{{ hskill.skill_name }}</option>
+          <option value="{{ hskill.skill_id }}" {% if hskill.skill_id in selected_hard %}selected{% endif %}>
+            {{ hskill.skill_name }}
+          </option>
         {% endfor %}
       </select>
     </div>
 
     <div class="form-group">
       <label for="softSkills">Soft Skills :</label>
-      <select id="softSkills" name="softSkills[]" multiple class="select2">
+      <select id="softSkills" name="soft_skills[]" multiple class="select2">
         {% for sskill in soft_skills %}
-          <option value="{{ sskill.skill_id }}">{{ sskill.skill_name }}</option>
+          <option value="{{ sskill.skill_id }}" {% if sskill.skill_id in selected_soft %}selected{% endif %}>
+            {{ sskill.skill_name }}
+          </option>
         {% endfor %}
       </select>
     </div>
 
     <div class="form-group">
-      <label for="desc">Job Description :</label>
-      <input type="text" id="desc" name="desc">
+      <label for="job_desc">Job Description :</label>
+      <input type="text" id="job_desc" name="job_desc" value="{{ internship.job_desc }}" required>
     </div>
 
     <div class="button-group">
       <button class="btn-clear" type="reset">Clear Data</button>
-      <button class="btn-add" type="submit">ADD</button>
+      <button class="btn-update" type="submit">Update</button>
     </div>
   </form>
 </div>
-
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -125,31 +126,11 @@
       allowClear: true
     });
 
-    // Fix untuk tombol "Clear Data"
     $('.btn-clear').on('click', function () {
       $('#hardSkills').val(null).trigger('change');
       $('#softSkills').val(null).trigger('change');
     });
   });
 </script>
-
-<script>
-  $(document).ready(function () {
-    $('.select2').select2({
-      placeholder: "Select skills",
-      allowClear: true
-    });
-
-    $('.btn-clear').on('click', function () {
-      $('#hardSkills').val(null).trigger('change');
-      $('#softSkills').val(null).trigger('change');
-    });
-  });
-
-  function confirmSubmission() {
-    return confirm("Are you sure you want to submit this internship data?");
-  }
-</script>
-
 
 {% endblock %}
