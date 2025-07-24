@@ -2,9 +2,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db import connection
 from django.contrib import messages
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Q, Count, Exists, OuterRef  
 from .models import Student, Skill, StudentSkill, Certificate, CompanyRequirement, CompanyRequirementSkill, StudentCompanyChoice
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseNotFound
 import os
 import json
 from django.utils.timezone import now
@@ -12,14 +12,93 @@ from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 
 def home_student_view(request):
-    if 'student_id' not in request.session:
+    student_id = request.session.get('student_id')
+    if not student_id:
         return redirect('login')
-    return render(request, 'skill_analysis/home_student.html')
+
+    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    company_name = "-"
+    position = "-"
+
+    if internship:
+        company_name = internship.company.company_name
+        position = internship.company.position
+
+    # Ambil data sertifikat
+    certificates = Certificate.objects.filter(student_id=student_id)
+
+    skill_fulfilled = calculate_skill_process(student_id)
+    skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+
+    context = {
+        'company_name': company_name,
+        'position': position,
+        'certificates': certificates,
+        'skill_fulfilled_percent': skill_fulfilled,
+        'skill_not_fulfilled_percent': skill_not_fulfilled,
+    }
+
+    return render(request, 'skill_analysis/home_student.html', context)
 
 def home_icc_view(request):
-    if 'student_id' not in request.session:
-        return redirect('login')
-    return render(request, 'skill_analysis/home_icc.html')
+    total_students = Student.objects.count()
+
+    # Company paling diminati
+    company_counts = (
+        StudentCompanyChoice.objects
+        .values('company__company_name')
+        .annotate(count=Count('company'))
+        .order_by('-count')[:5]
+    )
+    company_data = {
+        'labels': [item['company__company_name'] for item in company_counts],
+        'data': [item['count'] for item in company_counts]
+    }
+
+    # Posisi paling diminati
+    position_counts = (
+        StudentCompanyChoice.objects
+        .values('position')
+        .annotate(count=Count('position'))
+        .order_by('-count')[:5]
+    )
+    position_data = {
+        'labels': [item['position'] for item in position_counts],
+        'data': [item['count'] for item in position_counts]
+    }
+
+    # Hard skill paling banyak dibutuhkan oleh perusahaan yang dipilih
+    choices_subquery = StudentCompanyChoice.objects.filter(
+        company_id=OuterRef('cr_id')
+    )
+
+    # ✨ FIX: ubah cara penulisan filter
+    hard_skill_counts = (
+        CompanyRequirementSkill.objects
+        .filter(
+            skill_type__iexact='hard skill'
+        )
+        .filter(  # tambahkan filter kedua untuk Exists()
+            Exists(choices_subquery)
+        )
+        .values('skill__skill_name')
+        .annotate(count=Count('skill'))
+        .order_by('-count')[:5]
+    )
+
+    hard_skill_data = {
+        'labels': [item['skill__skill_name'] for item in hard_skill_counts],
+        'data': [item['count'] for item in hard_skill_counts]
+    }
+
+    return render(request, 'skill_analysis/home_icc.html', {
+        'total_students': total_students,
+        'company_data': company_data,
+        'position_data': position_data,
+        'hard_skill_data': hard_skill_data
+    })
+
+
 
 def course_view(request):
     return render(request, 'skill_analysis/course.html')
@@ -219,7 +298,6 @@ def internship_icc_view(request):
 
 def internship_form_view(request):
     return render(request, 'skill_analysis/internship_form.html')
-
 def internship_desc_view(request, company_name):
     company_requirements = CompanyRequirement.objects.filter(company_name=company_name)
     skills = CompanyRequirementSkill.objects.filter(
@@ -247,9 +325,10 @@ def internship_desc_view(request, company_name):
             'cr_id': req.cr_id  # simpan cr_id juga untuk simpan ke DB
         }
 
-        if request.method == "POST":
-            student_id= request.session.get('student_id')
-            position = request.POST.get('position')
+    # ✅ Blok POST — cek dan proses pilihan
+    if request.method == "POST":
+        student_id = request.session.get('student_id')
+        position = request.POST.get('position')
 
         if not student_id:
             messages.error(request, "You must login first.")
@@ -264,14 +343,14 @@ def internship_desc_view(request, company_name):
         try:
             existing_choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
             if existing_choice:
-            # Update pilihan lama
+                # Update pilihan lama
                 existing_choice.company_id = cr_id
                 existing_choice.position = position
                 existing_choice.created_at = now()
                 existing_choice.save()
                 messages.success(request, "Your previous choice has been updated.")
             else:
-            # Buat pilihan baru
+                # Buat pilihan baru
                 StudentCompanyChoice.objects.create(
                     student_id=student_id,
                     company_id=cr_id,
@@ -279,13 +358,13 @@ def internship_desc_view(request, company_name):
                     created_at=now()
                 )
                 messages.success(request, "You successfully chose this company.")
-            
-            return redirect('apply', company_name=company_name)
-        
+
+            return redirect('internship_desc', company_name=company_name)
+
         except Exception as e:
             messages.error(request, f"Failed to save your choice: {str(e)}")
-            return redirect('apply', company_name=company_name)
-        
+            return redirect('internship_desc', company_name=company_name)
+
     context = {
         'company_name': company_name,
         'positions': list(positions_data.keys()),
@@ -423,8 +502,6 @@ def add_certificate(request):
             # Optional: tampilkan pesan error ke user juga
             return redirect('skill')
     return redirect('skill')
-    
-from django.db.models import Q
 
 def delete_skill(request, skill_name):
     student_id = request.session.get("student_id")

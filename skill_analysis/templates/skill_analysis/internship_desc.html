@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base_student.html' %}
 
 {% block title %}Apply - {{ company_name }}{% endblock %}
 
@@ -15,39 +15,38 @@
     </div>
   {% endif %}
 
-  <div class="row mb-3">
-    <div class="col-md-4">
-      <label><strong>Position</strong></label>
-      <select class="form-select" id="position-select" onchange="updateFields(this.value)">
-        {% for pos in positions %}
-          <option>{{ pos }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-
-  <div class="row mb-3">
-    <div class="col-md-4">
-      <label><strong>Description</strong></label>
-      <textarea id="description" class="form-control" readonly rows="2"></textarea>
-    </div>
-  </div>
-
-  <div class="row mb-3">
-    <div class="col-md-6">
-      <label><strong>Soft Skill</strong></label>
-      <textarea id="soft" class="form-control" readonly rows="10"></textarea>
-    </div>
-    <div class="col-md-6">
-      <label><strong>Hard Skill</strong></label>
-      <textarea id="hard" class="form-control" readonly rows="10"></textarea>
-    </div>
-  </div>
-
-  <form method="POST" action="{% url 'apply' company_name %}">
+  <form method="POST" action="{% url 'internship_desc' company_name %}">
     {% csrf_token %}
-    <!-- Hidden input supaya position yang dipilih ikut dikirim -->
     <input type="hidden" name="position" id="selected-position" value="">
+
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <label><strong>Position</strong></label>
+        <select class="form-select" id="position-select" onchange="updateFields(this.value)">
+          {% for pos in positions %}
+            <option>{{ pos }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-4">
+        <label><strong>Description</strong></label>
+        <textarea id="description" class="form-control" readonly rows="2"></textarea>
+      </div>
+    </div>
+
+    <div class="row mb-3">
+      <div class="col-md-6">
+        <label><strong>Soft Skill</strong></label>
+        <textarea id="soft" class="form-control" readonly rows="10"></textarea>
+      </div>
+      <div class="col-md-6">
+        <label><strong>Hard Skill</strong></label>
+        <textarea id="hard" class="form-control" readonly rows="10"></textarea>
+      </div>
+    </div>
 
     <div class="d-flex justify-content-between mt-4">
       <a href="{% url 'internship' %}" class="btn btn-secondary">Back</a>
@@ -74,23 +73,23 @@
 </div>
 
 <script>
-    const positionsData = JSON.parse('{{ positions_data|safe|escapejs }}');
+  const positionsData = JSON.parse('{{ positions_data|safe|escapejs }}');
 
-    function updateFields(position) {
-        const data = positionsData[position];
-        document.getElementById('description').value = data.desc;
-        document.getElementById('soft').value = data.soft;
-        document.getElementById('hard').value = data.hard;
-        document.getElementById('selected-position').value = position;
-    }
+  function updateFields(position) {
+    const data = positionsData[position];
+    document.getElementById('description').value = data.desc;
+    document.getElementById('soft').value = data.soft;
+    document.getElementById('hard').value = data.hard;
+    document.getElementById('selected-position').value = position;
+  }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const defaultPosition = document.querySelector('#position-select').value;
-        updateFields(defaultPosition);
-    });
+  document.addEventListener('DOMContentLoaded', function() {
+    const defaultPosition = document.querySelector('#position-select').value;
+    updateFields(defaultPosition);
+  });
 
-    document.getElementById('position-select').addEventListener('change', function() {
-        document.getElementById('selected-position').value = this.value;
-    });
+  document.getElementById('position-select').addEventListener('change', function() {
+    document.getElementById('selected-position').value = this.value;
+  });
 </script>
 {% endblock %}

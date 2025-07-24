@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'base_student.html' %}
 {% block title %}Internship{% endblock %}
 {% block content %}
 <div class="content-box" style="background-color: var(--secondary);">
@@ -7,7 +7,7 @@
 
   <div class="list-group">
     {% for company in companies %}
-      <a href="{% url 'apply' company %}"
+      <a href="{% url 'internship_desc' company %}"
          class="list-group-item list-group-item-action my-2 py-2 company-link"
          style="border-radius: 10px; background-color: white; color: black;">
         <i class="bi bi-buildings-fill me-2"></i>{{ company }}
