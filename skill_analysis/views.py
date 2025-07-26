@@ -41,9 +41,12 @@ def home_student_view(request):
         company_name = internship.company.company_name
         position = internship.company.position
 
-    # Ambil data sertifikat
     certificates = Certificate.objects.filter(student_id=student_id)
 
+    # Ambil skill gap dari fungsi rekomendasi
+    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
+
+    # Persentase skill
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
@@ -53,6 +56,7 @@ def home_student_view(request):
         'certificates': certificates,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
+        'skill_gaps': skill_gaps,  # ✅ Tambahkan skill_gaps ke context
     }
 
     return render(request, 'skill_analysis/home_student.html', context)
@@ -193,7 +197,7 @@ def analysis_view(request):
         # Ambil data student yang memilih company tersebut pada tahun terpilih
         student_choices = StudentCompanyChoice.objects.filter(
             company__company_name=selected_company,
-            created_at__year=year_list_of_position  # filter tahun
+            created_at__year=year_list_of_position
         )
         total_students = student_choices.count()
 
@@ -211,22 +215,24 @@ def analysis_view(request):
                 'percent': percent
             })
 
+        # 🔽 Sortir posisi dari count terbesar ke terkecil
+        position_data = sorted(position_data, key=lambda x: x['count'], reverse=True)
+
     return render(request, 'skill_analysis/analysis.html', {
-        # Tahun untuk filter masing-masing card
         'all_years': all_years,
         'year_position': int(year_position) if year_position else None,
         'year_company': int(year_company) if year_company else None,
         'year_list_of_position': int(year_list_of_position) if year_list_of_position else None,
         'selected_trend_years': [int(y) for y in trend_years],
 
-        # Data untuk 3 card utama
+        # Data utama
         'most_position_data': most_position_data,
         'most_company_data': most_company_data,
         'chart_labels': chart_labels,
         'chart_counts': chart_counts,
         'chart_tooltips': chart_tooltips,
 
-        # Data untuk card list of positions
+        # List posisi per perusahaan
         'companies': companies,
         'selected_company': selected_company,
         'positions': positions,
@@ -235,7 +241,6 @@ def analysis_view(request):
 
 def course_view(request):
     return render(request, 'skill_analysis/course.html')
-
 
 def student_view(request):
     student_id = request.session.get('student_id')
@@ -271,6 +276,7 @@ def student_view(request):
 
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
 
     return render(request, 'skill_analysis/student.html', {
         'student': student,
@@ -280,6 +286,7 @@ def student_view(request):
         'position': position,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
+        'skill_gaps': skill_gaps,
     })
     
 def update_profile_photo(request):
@@ -334,7 +341,6 @@ def student_data_view(request, student_id):
     student = get_object_or_404(Student, student_id=student_id)
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    # Ambil data pilihan perusahaan dan posisi
     internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
     company_name = "-"
     position = "-"
@@ -345,7 +351,6 @@ def student_data_view(request, student_id):
             company_name = company.company_name or "-"
             position = company.position or "-"
 
-    # Pisahkan skill
     hard_skills = []
     soft_skills = []
 
@@ -355,9 +360,9 @@ def student_data_view(request, student_id):
         if skill.soft_skill:
             soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
 
-    # Hitung Skill Process
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
 
     return render(request, 'skill_analysis/student_data.html', {
         'student': student,
@@ -367,8 +372,8 @@ def student_data_view(request, student_id):
         'position': position,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
+        'skill_gaps': skill_gaps,
     })
-
 
 def calculate_skill_process(student_id):
     # Ambil company yang dipilih student
@@ -403,6 +408,7 @@ def calculate_skill_process(student_id):
             score += 1.0
 
     return round((score / max_score) * 100, 2)
+
 def _get_student_for_request(request):
     """Helper function untuk mengambil student dari session"""
     student_id = request.session.get('student_id')
@@ -643,7 +649,6 @@ def recommendations_api(request):
     """Legacy API endpoint - redirects to new API"""
     return api_course_recommendations(request)
 
-
 def skill_icc_view(request):
     return render(request, 'skill_analysis/skill_icc.html')
 
@@ -725,9 +730,6 @@ def internship_desc_view(request, company_name):
     }
     return render(request, 'skill_analysis/internship_desc.html', context)
 
-def anaysis_view(request):
-    return render(request, 'skill_analysis/analysis.html')
-
 def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email')
@@ -747,6 +749,10 @@ def login_view(request):
             return redirect('login')
 
     return render(request, 'skill_analysis/login.html')
+
+def logout_view(request):
+    request.session.flush()  # Menghapus semua data session
+    return redirect('login') 
 
 def skill_view(request):
     student_id = request.session.get("student_id")

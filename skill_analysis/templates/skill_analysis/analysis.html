@@ -346,43 +346,59 @@
     </div>
 
     <form method="get" id="trendForm" style="position: relative; margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
-      <input type="hidden" name="year_position" value="{{ year_position }}">
-      <input type="hidden" name="year_company" value="{{ year_company }}">
-      <input type="hidden" name="company" value="{{ selected_company }}">
+        <input type="hidden" name="year_position" value="{{ year_position }}">
+        <input type="hidden" name="year_company" value="{{ year_company }}">
+        <input type="hidden" name="company" value="{{ selected_company }}">
 
-      <div class="custom-multiselect">
-        <div class="dropdown-btn" onclick="toggleDropdown()">Select Years</div>
-        <div class="dropdown-content" id="dropdownContent">
-          {% for y in all_years %}
-          <label>
-            <input type="checkbox" name="trend_years" value="{{ y }}" {% if y in selected_trend_years %}checked{% endif %}>
-            {{ y }}
-          </label><br>
-          {% endfor %}
+        <div class="custom-multiselect">
+          <div class="dropdown-btn" onclick="toggleDropdown()">Select Years</div>
+          <div class="dropdown-content" id="dropdownContent">
+            {% for y in all_years %}
+            <label>
+              <input type="checkbox" name="trend_years" value="{{ y }}" {% if y in selected_trend_years %}checked{% endif %}>
+              {{ y }}
+            </label><br>
+            {% endfor %}
+          </div>
         </div>
-      </div>
-      <button type="submit" class="search-btn">Search</button>
-    </form>
+        <button type="submit" class="search-btn">Search</button>
+      </form>
 
     <canvas id="trendChart" style="width: 100%; max-height: 300px;"></canvas>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
       const ctx = document.getElementById('trendChart').getContext('2d');
-      const chartData = {
-        labels: {{ chart_labels|safe }},
-        datasets: [{
-          label: 'Total students choose internship',
-          data: {{ chart_counts|safe }},
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          tension: 0.3,
-          fill: true
-        }]
-      };
+
+      // Sort data by ascending years (label)
+      const labels = {{ chart_labels|safe }};
+      const counts = {{ chart_counts|safe }};
+      const tooltips = {{ chart_tooltips|safe }};
+
+      const combined = labels.map((label, i) => ({
+        label: label,
+        count: counts[i],
+        tooltip: tooltips[i] || ''
+      }));
+
+      combined.sort((a, b) => a.label - b.label);  // ascending order
+
+      const sortedLabels = combined.map(item => item.label);
+      const sortedCounts = combined.map(item => item.count);
+      const sortedTooltips = combined.map(item => item.tooltip);
 
       new Chart(ctx, {
         type: 'line',
-        data: chartData,
+        data: {
+          labels: sortedLabels,
+          datasets: [{
+            label: 'Total students choose internship',
+            data: sortedCounts,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
         options: {
           responsive: true,
           plugins: {
@@ -390,15 +406,23 @@
               callbacks: {
                 afterBody: function(context) {
                   const index = context[0].dataIndex;
-                  const tooltips = {{ chart_tooltips|safe }};
-                  return tooltips[index] || '';
+                  return sortedTooltips[index];
                 }
               }
             }
           },
           scales: {
-            x: { title: { display: true, text: 'Years' }},
-            y: { title: { display: true, text: 'Total students choose internship' }}
+            x: {
+              title: { display: true, text: 'Years' }
+            },
+            y: {
+              title: { display: true, text: 'Total students choose internship' },
+              ticks: {
+                callback: function(value) {
+                  return Number.isInteger(value) ? value : null;
+                }
+              }
+            }
           }
         }
       });
@@ -415,7 +439,6 @@
           dropdown.style.display = "none";
         }
       });
-
     </script>
   </div>
 

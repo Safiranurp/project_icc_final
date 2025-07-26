@@ -251,20 +251,20 @@
         </div>
     </div>
 
-    <!-- Learning Path -->
-    <div class="card learning-path">
-        <h3>Learning Path</h3>
-        <div class="skill-list">
+  <!-- Learning Path -->
+  <div class="card learning-path">
+    <h3>Learning Path</h3>
+    {% if skill_gaps %}
+      <div class="skill-list">
         <ul>
-            <li>SQL Fundamentals</li>
-            <li>Data Visualization</li>
-            <li>Advanced Python</li>
-            <li>Machine Learning</li>
-            <li>Big Data Analytics</li>
-            <li>Project Management</li>
-            <li>Business Communication</li>
+          {% for skill in skill_gaps %}
+            <li>{{ skill }}</li>
+          {% endfor %}
         </ul>
-        </div>
-    </div>
+      </div>
+    {% else %}
+      <p class="text-gray-600 text-sm mt-2">Tidak ada skill gap yang perlu dikembangkan saat ini. Good job!</p>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

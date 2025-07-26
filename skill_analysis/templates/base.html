@@ -103,16 +103,18 @@
 </head>
 <body>
 
-  <!-- Topbar -->
-  <div class="topbar">
-    <button class="toggle-btn" onclick="toggleSidebar()">
-      <i class="bi bi-list"></i>
-    </button>
-    <div class="user-section">
-      <span><strong>Welcome, Alfira!</strong></span>
-      <img src="https://via.placeholder.com/35" alt="User" style="border-radius: 50%; height: 35px;">
-    </div>
+<!-- Topbar -->
+<div class="topbar">
+  <button class="toggle-btn" onclick="toggleSidebar()">
+    <i class="bi bi-list"></i>
+  </button>
+  <div class="user-section">
+    <span><strong>Welcome, Admin!</strong></span>
+    <a href="{% url 'logout' %}" title="Logout" style="margin-left: 10px; color: inherit;">
+      <i class="bi bi-box-arrow-right" style="font-size: 1.2rem;"></i>
+    </a>
   </div>
+</div>
 
   <!-- Wrapper -->
   <div class="wrapper">

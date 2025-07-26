@@ -56,9 +56,14 @@
     padding: 8px 12px;
   }
 
-  canvas {
-    width: 100% !important;
-    height: 150px !important;
+  ul.skill-gap-list {
+    padding-left: 20px;
+    text-align: left;
+  }
+
+  ul.skill-gap-list li {
+    margin-bottom: 8px;
+    font-size: 16px;
   }
 </style>
 {% endblock %}
@@ -90,22 +95,22 @@
           <span class="text-muted">No certificates uploaded</span>
         {% endif %}
       </div>
-
-        <!-- <div class="card text-center d-flex flex-wrap gap-2">
-            <h3>Course Distribution</h3>
-            <div class="card-body ">
-                <canvas id="distributionChart"></canvas>
-            </div>
-        </div> -->
     </div>
 
+    <!-- Learning Path -->
     <div class="card">
-        <div class="card text-center d-flex flex-wrap gap-2">
-            <h3>Course Distribution</h3>
-            <div class="card-body ">
-                <canvas id="distributionChart"></canvas>
-            </div>
-        </div>
+      <h3>Learning Path</h3>
+      <div class="card-body">
+        {% if skill_gaps %}
+          <ul class="skill-gap-list">
+            {% for skill in skill_gaps %}
+              <li>{{ skill }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted">No data.</p>
+        {% endif %}
+      </div>
     </div>
 
   </div>
@@ -135,56 +140,4 @@
 
   </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  const progressCtx = document.getElementById('progressChart').getContext('2d');
-  new Chart(progressCtx, {
-    type: 'line',
-    data: {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-      datasets: [{
-        label: 'Progress',
-        data: [60, 70, 50, 80, 75, 90],
-        borderColor: '#555879',
-        backgroundColor: 'rgba(85, 88, 121, 0.1)',
-        fill: true,
-        tension: 0.4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      aspectRatio: 2,
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: 150,
-          ticks: { callback: val => val + '%' }
-        }
-      }
-    }
-  });
-
-  const distributionCtx = document.getElementById('distributionChart').getContext('2d');
-  new Chart(distributionCtx, {
-    type: 'bar',
-    data: {
-      labels: ['Python', 'ML', 'System Analyst', 'Web Dev'],
-      datasets: [{
-        label: 'Courses',
-        data: [3, 2, 1, 4],
-        backgroundColor: '#98A1BC'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      aspectRatio: 2,
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-</script>
 {% endblock %}
