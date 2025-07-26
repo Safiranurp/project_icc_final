@@ -158,18 +158,6 @@
 {% endblock %}
 
 {% block content %}
-<!-- Tombol Back -->
-<a href="{% url 'student' %}" style="
-  display: inline-block;
-  padding: 8px 16px;
-  background-color: #555879;
-  color: white;
-  text-decoration: none;
-  border-radius: 8px;
-  font-weight: bold;
-">
-  &#8592; Back
-</a>
 
 <div class="container">
     <!-- Profile -->
@@ -284,7 +272,9 @@
         </ul>
       </div>
     {% else %}
-      <p class="text-gray-600 text-sm mt-2">Tidak ada skill gap yang perlu dikembangkan saat ini. Good job!</p>
+      <div class="skill-list">      
+        <p class="text-gray-600 text-sm mt-2">No data</p>
+      </div>
     {% endif %}
   </div>
 

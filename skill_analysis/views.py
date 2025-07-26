@@ -751,7 +751,7 @@ def login_view(request):
     return render(request, 'skill_analysis/login.html')
 
 def logout_view(request):
-    request.session.flush()  # Menghapus semua data session
+    request.session.flush()
     return redirect('login') 
 
 def skill_view(request):
@@ -794,7 +794,6 @@ def skill_view(request):
         'skills': skills,
         'certificates': certificates,
     })
-
 
 def add_skill(request):
     if request.method == 'POST':
@@ -903,12 +902,6 @@ def delete_certificate(request, c_id):
 
     return redirect('skill')
 
-def logout_view(request):
-    request.session.flush()
-    return redirect('login')
-
-
-
 def skill_list(request):
     skills = Skill.objects.all()
     skill_types = Skill.objects.values_list('skill_type', flat=True).distinct()
@@ -927,7 +920,6 @@ def skill_list(request):
         'skill_types': skill_types,
     })
 
-
 def generate_next_skill_id():
     last = Skill.objects.aggregate(Max('skill_id'))['skill_id__max']
     if last:
@@ -935,7 +927,6 @@ def generate_next_skill_id():
         return f"SK{number + 1:03d}"
     else:
         return "SK001"
-
 
 def add_skill_icc(request):
     if request.method == 'POST':
@@ -952,8 +943,6 @@ def add_skill_icc(request):
         return redirect('skill_icc')
     else:
         return redirect('skill_icc')
-
-    
 
 def showIntern(request): 
     cr_id = CompanyRequirement.objects.all()
@@ -975,7 +964,6 @@ def showIntern(request):
         'positions': positions,
     })
 
-
 def delete_intern(request, cr_id):
     try:
         CompanyRequirementSkill.objects.filter(cr_id=cr_id).delete()
@@ -988,8 +976,6 @@ def delete_intern(request, cr_id):
     
     return redirect('internship_icc')
 
-
-
 def skill_internForm(request):
     hard_skills = Skill.objects.filter(skill_type='Hard Skill')
     soft_skills = Skill.objects.filter(skill_type='Soft Skill')
@@ -998,7 +984,6 @@ def skill_internForm(request):
         'hard_skills': hard_skills,
         'soft_skills': soft_skills,
     })
-
 
 def generate_next_cr_id():
     last = CompanyRequirement.objects.aggregate(Max('cr_id'))['cr_id__max']
@@ -1015,7 +1000,6 @@ def generate_next_crs_id():
         return f"CRS{number + 1:04d}"
     else:
         return "CRS0001"
-
 
 def submit_intern(request):
     if request.method == 'POST':
@@ -1070,7 +1054,6 @@ def generate_new_crs_id():
             num = int(match.group()) + 1
             return f"CRS{num:04d}"
     return "CRS0001"
-
 
 def edit_intern(request, cr_id):
     try:
@@ -1127,9 +1110,6 @@ def edit_intern(request, cr_id):
         'selected_soft': selected_soft,
     }
     return render(request, 'skill_analysis/internship_edit_icc.html', context)
-
-
-
 
 def update_intern(request, cr_id):
     company_req = get_object_or_404(CompanyRequirement, cr_id=cr_id)
