@@ -273,6 +273,56 @@
 {% block content %}
 <div class="grid">
 
+  <!-- ======== COMPANY FILTER AND POSITION LIST ======== -->
+    <!-- Filter Company -->
+  <div class="card">
+    <div class="company-header">Company</div>
+    <form method="get">
+      <select name="company" class="company-select" size="12" onchange="this.form.submit()">
+        {% for company in companies %}
+          <option value="{{ company }}" {% if company == selected_company %}selected{% endif %}>{{ company }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="year_list_of_position" value="{{ year_list_of_position }}">
+    </form>
+  </div>
+
+  <!-- Filter Year -->
+  <div class="card">
+    <div class="position-header">
+      <form method="get">
+        <input type="hidden" name="company" value="{{ selected_company }}">
+        <select name="year_list_of_position" class="dropdown-select" onchange="this.form.submit()">
+          {% for y in all_years %}
+            <option value="{{ y }}" {% if y == year_list_of_position %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      <h3>List of positions</h3>
+      <h2>{{ selected_company }}</h2>
+    </div>
+
+    <span>{{ positions|length }} positions</span>
+    <div class="bar-list">
+      {% for item in position_data %}
+        <div style="margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between;">
+            <span><strong>{{ item.position }}</strong></span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" style="width: {{ item.percent }}%;">
+              <div class="tooltip">
+                {{ item.percent }}%<br>
+                {{ item.count }} student{% if item.count != 1 %}s{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% empty %}
+        <p style="color: #666; text-align:center;">No positions available</p>
+      {% endfor %}
+    </div>
+  </div>
   <!-- ======== MOST POSITION CARD ======== -->
   <div class="card">
     <div class="position-header">
@@ -342,7 +392,7 @@
   <!-- ======== TREND LINE CHART CARD ======== -->
   <div class="card" style="grid-column: span 2; min-height: 450px; padding: 24px;">
     <div class="position-header">
-      <h3>Trend Line Chart</h3>
+      <h3>Internship Preferences by Year</h3>
     </div>
 
     <form method="get" id="trendForm" style="position: relative; margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
@@ -441,57 +491,5 @@
       });
     </script>
   </div>
-
-  <!-- ======== COMPANY FILTER AND POSITION LIST ======== -->
-    <!-- Filter Company -->
-  <div class="card">
-    <div class="company-header">Company</div>
-    <form method="get">
-      <select name="company" class="company-select" size="12" onchange="this.form.submit()">
-        {% for company in companies %}
-          <option value="{{ company }}" {% if company == selected_company %}selected{% endif %}>{{ company }}</option>
-        {% endfor %}
-      </select>
-      <input type="hidden" name="year_list_of_position" value="{{ year_list_of_position }}">
-    </form>
-  </div>
-
-  <!-- Filter Year -->
-  <div class="card">
-    <div class="position-header">
-      <form method="get">
-        <input type="hidden" name="company" value="{{ selected_company }}">
-        <select name="year_list_of_position" class="dropdown-select" onchange="this.form.submit()">
-          {% for y in all_years %}
-            <option value="{{ y }}" {% if y == year_list_of_position %}selected{% endif %}>{{ y }}</option>
-          {% endfor %}
-        </select>
-      </form>
-      <h3>List of positions</h3>
-      <h2>{{ selected_company }}</h2>
-    </div>
-
-    <span>{{ positions|length }} positions</span>
-    <div class="bar-list">
-      {% for item in position_data %}
-        <div style="margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span><strong>{{ item.position }}</strong></span>
-          </div>
-          <div class="progress-bar-container">
-            <div class="progress-bar-fill" style="width: {{ item.percent }}%;">
-              <div class="tooltip">
-                {{ item.percent }}%<br>
-                {{ item.count }} student{% if item.count != 1 %}s{% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      {% empty %}
-        <p style="color: #666; text-align:center;">No positions available</p>
-      {% endfor %}
-    </div>
-  </div>
-
 </div>
 {% endblock %}

@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db import connection
 from django.contrib import messages
@@ -27,6 +28,15 @@ from .models import (
     CompanyRequirement, CompanyRequirementSkill, 
     Skill, Course, StudentCompanyChoice
 )
+
+# ============================================================
+# ENHANCED CONSTANTS - Added for strict validation
+# ============================================================
+logger = logging.getLogger(__name__)
+
+# STRICT CONSTANTS - sesuai dengan train_random_forest.py
+MIN_SKILLS_REQUIRED = 3  # MUST match train_random_forest.py
+ENABLE_DEBUG_LOGGING = True  # Set to False in production
 
 def home_student_view(request):
     student_id = request.session.get('student_id')
@@ -418,74 +428,270 @@ def _get_student_for_request(request):
         return Student.objects.get(student_id=student_id)
     except Student.DoesNotExist:
         return None
+    
+def _build_completion_message(has_skills: bool, has_internship: bool, skills_count: int) -> str:
+    """Build user-friendly completion message"""
+    if not has_skills and not has_internship:
+        return f"Complete your profile to see personalized recommendations. You need to add skills (minimum {MIN_SKILLS_REQUIRED}) and select an internship company."
+    elif not has_skills:
+        needed = MIN_SKILLS_REQUIRED - skills_count
+        return f"Please add {needed} more skills to your profile. You currently have {skills_count} skills (minimum {MIN_SKILLS_REQUIRED} required)."
+    elif not has_internship:
+        return "Please select an internship company to see tailored course recommendations."
+    else:
+        return "Profile complete! Generating personalized recommendations..."
+
+def _build_missing_requirements(has_skills: bool, has_internship: bool, skills_count: int) -> list:
+    """Build missing requirements list"""
+    missing_requirements = []
+    if not has_skills:
+        missing_requirements.append(f"Add at least {MIN_SKILLS_REQUIRED} skills to your profile (current: {skills_count})")
+    if not has_internship:
+        missing_requirements.append("Select an internship company and position")
+    return missing_requirements
+
+def _dedupe_recommendations_enhanced(recommendations: list) -> list:
+    """Enhanced deduplication that merges skills from duplicate courses"""
+    if not recommendations:
+        return []
+
+    # Group by course_id/course_name
+    course_groups = {}
+    for rec in recommendations:
+        if not isinstance(rec, dict):
+            continue
+        key = rec.get('course_id') or rec.get('course_name', 'unknown')
+        if key not in course_groups:
+            course_groups[key] = []
+        course_groups[key].append(rec)
+    
+    # Merge duplicates
+    merged_recommendations = []
+    for course_key, course_list in course_groups.items():
+        if len(course_list) == 1:
+            merged_recommendations.append(course_list[0])
+        else:
+            # Merge duplicate courses by combining skills
+            base_course = max(course_list, key=lambda x: x.get('score', 0))
+            
+            # Collect all skills from duplicates
+            all_covers_skills = set()
+            all_reinforces_skills = set()
+            all_taught_skills = set()
+            all_supports_company_skills = set()
+            highest_score = 0
+            best_priority = 'Low'
+            
+            for course in course_list:
+                all_covers_skills.update(course.get('covers_skills', []))
+                all_reinforces_skills.update(course.get('reinforces_skills', []))
+                all_taught_skills.update(course.get('all_taught_skills', course.get('teach_skills', [])))
+                all_supports_company_skills.update(course.get('supports_company_skills', []))
+                
+                # Track best score and priority
+                score = course.get('score', 0)
+                if score > highest_score:
+                    highest_score = score
+                
+                priority = course.get('priority', 'Low')
+                if priority == 'High':
+                    best_priority = 'High'
+                elif priority == 'Medium' and best_priority != 'High':
+                    best_priority = 'Medium'
+            
+            # Update base course with merged skills
+            base_course.update({
+                'score': highest_score,
+                'priority': best_priority,
+                'covers_skills': sorted(list(all_covers_skills)),
+                'reinforces_skills': sorted(list(all_reinforces_skills)),
+                'all_taught_skills': sorted(list(all_taught_skills)),
+                'teach_skills': sorted(list(all_taught_skills)),  # Backward compatibility
+                'supports_company_skills': sorted(list(all_supports_company_skills)),
+            })
+            
+            merged_recommendations.append(base_course)
+    
+    # Sort by priority and score
+    priority_order = {'High': 3, 'Medium': 2, 'Low': 1}
+    merged_recommendations.sort(
+        key=lambda x: (priority_order.get(x.get('priority', 'Low'), 1), x.get('score', 0)), 
+        reverse=True
+    )
+    
+    return merged_recommendations
 
 def learning_view(request):
     """
-    Enhanced learning view with course recommendations
+    STRICT learning view - ZERO tolerance for incomplete profiles
+    NO recommendations shown until BOTH skills and internship are complete
     """
+    start_time = time.time()
+    
+    # Get student - fail fast if not found
     student = _get_student_for_request(request)
     if not student:
         return render(request, 'skill_analysis/learning.html', {
-            'error': 'Student not found. Please login.',
+            'error': 'Please login to access course recommendations.',
             'recommendations': [],
             'skill_gaps': [],
+            'has_skills': False,
+            'has_internship': False,
+            'show_completion_guide': True,
+            'completion_message': 'Please login first to see your personalized recommendations.',
+            'total_recommendations': 0,
+            'recommendation_stats': {'high_priority_count': 0, 'medium_priority_count': 0, 'low_priority_count': 0},
+            'completion_percentage': 0,
+            'processing_time': 0,
         })
 
-    # Upload Certificate (existing functionality)
-    if request.method == 'POST' and request.FILES.get('certificate_file'):
-        try:
-            file = request.FILES['certificate_file']
-            skill_type = request.POST.get('skill_type', '')
-            skill_name = request.POST.get('skill_name', '')
-            certificate_name = request.POST.get('certificate_name', file.name)
+    if ENABLE_DEBUG_LOGGING:
+        logger.info(f"[LEARNING_VIEW] Processing learning view for student_id={student.student_id}")
 
-            if not all([skill_type, skill_name]):
-                messages.error(request, "Skill type and name are required.")
-                return redirect('learning')
-
-            Certificate.objects.create(
-                student_id=student.student_id,
-                file=file,
-                skill_type=skill_type,
-                skill_name=skill_name,
-                certificate_name=certificate_name
-            )
-            # ✅ Invalidate cache after certificate upload
-            ModelCache.invalidate_all(str(student.student_id))
-            messages.success(request, "Certificate uploaded successfully.")
-            return redirect('learning')
-        except Exception as e:
-            messages.error(request, f"Error uploading certificate: {e}")
-            return redirect('learning')
-
-    # ✅ ENHANCED: Get course recommendations and skill gaps
     try:
-        # Get recommendations using ML function
-        recommendations = get_course_recommendations(str(student.student_id)) or []
+        # STEP 1: STRICT SKILLS VALIDATION
+        student_skills = StudentSkill.objects.filter(student_id=student.student_id).first()
+        has_skills = False
+        skills_count = 0
         
-        # Get skill gaps for the student
-        skill_gaps = get_skill_gap_for_student_company(str(student.student_id)) or []
+        if student_skills:
+            hard_skills = [s.strip() for s in student_skills.hard_skill.split(',') if s.strip()] if student_skills.hard_skill else []
+            soft_skills = [s.strip() for s in student_skills.soft_skill.split(',') if s.strip()] if student_skills.soft_skill else []
+            skills_count = len(hard_skills) + len(soft_skills)
+            has_skills = skills_count >= MIN_SKILLS_REQUIRED
         
-        # Deduplicate recommendations if needed
-        if recommendations:
-            recommendations = _dedupe_recommendations(recommendations)
+        if ENABLE_DEBUG_LOGGING:
+            logger.info(f"[LEARNING_VIEW] Skills validation: has_skills={has_skills}, count={skills_count}, required={MIN_SKILLS_REQUIRED}")
+        
+        # STEP 2: STRICT INTERNSHIP VALIDATION
+        internship_choice = StudentCompanyChoice.objects.filter(student_id=student.student_id).first()
+        has_internship = bool(internship_choice and internship_choice.company_id)
+        
+        company_name = ""
+        if has_internship:
+            try:
+                company_id = internship_choice.company_id
+                company = CompanyRequirement.objects.get(cr_id=company_id)
+                company_name = company.company_name or f"Company ID: {company_id}"
+            except CompanyRequirement.DoesNotExist:
+                has_internship = False
+                if ENABLE_DEBUG_LOGGING:
+                    logger.info(f"[LEARNING_VIEW] Company not found for cr_id={company_id}")
+        
+        if ENABLE_DEBUG_LOGGING:
+            logger.info(f"[LEARNING_VIEW] Internship validation: has_internship={has_internship}")
+        
+        # STEP 3: STRICT GATE - NO RECOMMENDATIONS UNTIL COMPLETE
+        if not (has_skills and has_internship):
+            completion_message = _build_completion_message(has_skills, has_internship, skills_count)
             
+            if ENABLE_DEBUG_LOGGING:
+                logger.info(f"[LEARNING_VIEW] STRICT validation failed - returning empty recommendations")
+            
+            context = {
+                'recommendations': [],  # ABSOLUTELY EMPTY
+                'skill_gaps': [],
+                'student': student,
+                'has_skills': has_skills,
+                'has_internship': has_internship,
+                'show_completion_guide': True,
+                'completion_message': completion_message,
+                'company_name': company_name,
+                'total_recommendations': 0,
+                'recommendation_stats': {
+                    'high_priority_count': 0,
+                    'medium_priority_count': 0,
+                    'low_priority_count': 0,
+                },
+                'completion_percentage': (int(has_skills) + int(has_internship)) * 50,
+                'missing_requirements': _build_missing_requirements(has_skills, has_internship, skills_count),
+                'processing_time': round((time.time() - start_time) * 1000, 2),
+            }
+            return render(request, 'skill_analysis/learning.html', context)
+
+        # STEP 4: PROFILE COMPLETE - Generate recommendations
+        if ENABLE_DEBUG_LOGGING:
+            logger.info("[LEARNING_VIEW] Profile complete - generating recommendations")
+        
+        from .train_random_forest import run_course_recommendation
+        
+        rec_start_time = time.time()
+        ml_result = run_course_recommendation(str(student.student_id), bypass_validation=False)
+        rec_processing_time = time.time() - rec_start_time
+        
+        recommendations = ml_result.get('recommendations', [])
+        skill_gaps = ml_result.get('skill_gap', [])
+        cache_used = ml_result.get('metadata', {}).get('cache_used', False)
+        
+        if ENABLE_DEBUG_LOGGING:
+            logger.info(f"[LEARNING_VIEW] ML result: {len(recommendations)} recommendations, cache_used={cache_used}")
+        
+        # Enhanced deduplication
+        if recommendations:
+            if ENABLE_DEBUG_LOGGING:
+                logger.info(f"[LEARNING_VIEW] Before deduplication: {len(recommendations)} courses")
+            recommendations = _dedupe_recommendations_enhanced(recommendations)
+            if ENABLE_DEBUG_LOGGING:
+                logger.info(f"[LEARNING_VIEW] After deduplication: {len(recommendations)} courses")
+        
+        # Calculate statistics
+        high_priority_count = len([r for r in recommendations if r.get('priority') == 'High'])
+        medium_priority_count = len([r for r in recommendations if r.get('priority') == 'Medium'])
+        low_priority_count = len([r for r in recommendations if r.get('priority') == 'Low'])
+        
+        if ENABLE_DEBUG_LOGGING:
+            logger.info(f"[LEARNING_VIEW] Priority distribution: High={high_priority_count}, Medium={medium_priority_count}, Low={low_priority_count}")
+        
+        context = {
+            'recommendations': recommendations,
+            'skill_gaps': skill_gaps,
+            'student': student,
+            'has_skills': True,
+            'has_internship': True,
+            'show_completion_guide': False,
+            'completion_message': f"Successfully generated {len(recommendations)} personalized course recommendations!",
+            'company_name': company_name,
+            'total_recommendations': len(recommendations),
+            'recommendation_stats': {
+                'high_priority_count': high_priority_count,
+                'medium_priority_count': medium_priority_count,
+                'low_priority_count': low_priority_count,
+            },
+            'completion_percentage': 100,
+            'missing_requirements': [],
+            'cache_used': cache_used,
+            'processing_time': round((time.time() - start_time) * 1000, 2),
+            'ml_processing_time': round(rec_processing_time * 1000, 2),
+        }
+        
+        if ENABLE_DEBUG_LOGGING:
+            logger.info(f"[LEARNING_VIEW] Successfully processed learning view in {context['processing_time']}ms")
+        
+        return render(request, 'skill_analysis/learning.html', context)
+        
     except Exception as e:
-        print(f"Error getting recommendations: {e}")  # For debugging
-        recommendations = []
-        skill_gaps = []
-        messages.error(request, f"Error loading recommendations: {e}")
-
-    # ✅ ENHANCED: Prepare context with all data
-    context = {
-        'recommendations': recommendations,
-        'skill_gaps': skill_gaps,
-        'student_id': str(student.student_id),
-        'total_recommendations': len(recommendations),
-        'student': student,
-    }
-
-    return render(request, 'skill_analysis/learning.html', context)
+        if ENABLE_DEBUG_LOGGING:
+            logger.error(f"[LEARNING_VIEW] ERROR in learning_view: {e}")
+        print(f"ERROR in learning_view: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        error_context = {
+            'error': f'Error loading recommendations: {str(e)}',
+            'recommendations': [],
+            'skill_gaps': [],
+            'student': student,
+            'has_skills': False,
+            'has_internship': False,
+            'show_completion_guide': True,
+            'completion_message': 'An error occurred while loading your recommendations. Please try refreshing the page.',
+            'total_recommendations': 0,
+            'recommendation_stats': {'high_priority_count': 0, 'medium_priority_count': 0, 'low_priority_count': 0},
+            'completion_percentage': 0,
+            'missing_requirements': ['Error occurred - please try again'],
+            'processing_time': round((time.time() - start_time) * 1000, 2),
+        }
+        return render(request, 'skill_analysis/learning.html', error_context)
 
 def course_recommendations_view(request):
     """
