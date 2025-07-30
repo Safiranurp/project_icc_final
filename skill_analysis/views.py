@@ -1173,6 +1173,7 @@ def showIntern(request):
 def delete_intern(request, cr_id):
     try:
         CompanyRequirementSkill.objects.filter(cr_id=cr_id).delete()
+        StudentCompanyChoice.objects.filter(company=cr_id).delete()
 
         CompanyRequirement.objects.filter(cr_id=cr_id).delete()
 

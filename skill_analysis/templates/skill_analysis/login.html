@@ -435,16 +435,7 @@
             messagingSenderId: "your-sender-id",
             appId: "your-app-id"
         };
-
-
-        function showAlert(id, message) {
-              const alertEl = document.getElementById(id);
-              if (message && id === 'errorAlert') {
-                  document.getElementById('errorMessage').innerText = message;
-              }
-              alertEl.style.display = 'block';
-          }
-
+        
           function hideAlert(id) {
               document.getElementById(id).style.display = 'none';
           }

@@ -183,6 +183,32 @@
     </div>
     {% endif %}
 
+    <!-- Recommendations Summary -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+            <i class="fas fa-chart-bar text-green-600 mr-2"></i>
+            Recommendations Summary
+        </h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-blue-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-blue-600">{{ total_recommendations }}</div>
+                <div class="text-sm text-blue-700">Total Courses</div>
+            </div>
+            <div class="bg-red-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-red-600">{{ recommendation_stats.high_priority_count }}</div>
+                <div class="text-sm text-red-700">High Priority</div>
+            </div>
+            <div class="bg-yellow-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-yellow-600">{{ recommendation_stats.medium_priority_count }}</div>
+                <div class="text-sm text-yellow-700">Medium Priority</div>
+            </div>
+            <div class="bg-orange-50 p-4 rounded-lg text-center">
+                <div class="text-2xl font-bold text-orange-600">{{ skill_gaps|length }}</div>
+                <div class="text-sm text-orange-700">Skills to Develop</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Course Recommendations -->
     {% if recommendations %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -311,32 +337,6 @@
             </div>
         </div>
         {% endfor %}
-    </div>
-
-    <!-- Recommendations Summary -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h3 class="text-lg font-semibold text-gray-800 mb-4">
-            <i class="fas fa-chart-bar text-green-600 mr-2"></i>
-            Recommendations Summary
-        </h3>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-blue-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-blue-600">{{ total_recommendations }}</div>
-                <div class="text-sm text-blue-700">Total Courses</div>
-            </div>
-            <div class="bg-red-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-red-600">{{ recommendation_stats.high_priority_count }}</div>
-                <div class="text-sm text-red-700">High Priority</div>
-            </div>
-            <div class="bg-yellow-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-yellow-600">{{ recommendation_stats.medium_priority_count }}</div>
-                <div class="text-sm text-yellow-700">Medium Priority</div>
-            </div>
-            <div class="bg-orange-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-orange-600">{{ skill_gaps|length }}</div>
-                <div class="text-sm text-orange-700">Skills to Develop</div>
-            </div>
-        </div>
     </div>
 
     {% else %}
