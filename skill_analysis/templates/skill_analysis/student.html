@@ -60,8 +60,6 @@
     grid-area: skill;
     padding: 0;
   }
-
-
   .skill-content {
     padding: 30px 20px;
     display: flex;
@@ -167,7 +165,7 @@
             <div style="position: relative; display: inline-block;">
                 <!-- Foto Profil -->
                 <img id="profileImage"
-                    src="{% if student.image %}{{ student.image }}{% else %}{% static 'skill_analysis/images/default.jpg' %}{% endif %}"
+                    src="{% if student.image %}{{ student.image }}{% else %}{% static '_analysis/images/default.jpg' %}{% endif %}"
                     alt="Profile"
                     style="width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #ccc;">
 
@@ -194,9 +192,9 @@
         </div>
     </div>
 
-  <!-- Skill Process -->
-  <div class="card skill-process">
-    <h3>Skill Process</h3>
+  <!--  Process -->
+  <div class="card -process">
+    <h3> Process</h3>
     <div class="skill-content">
       <div class="skill-text-group">
         <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
@@ -224,31 +222,31 @@
 
   <!-- Hard Skill and Soft Skill -->
   <div class="skills-area">
-    <div class="card skill-card">
+      <div class="card skill-card">
       <h3>Hard Skill</h3>
       <div class="skill-list">
-        <ul>
+          <ul>
           {% for skill in hard_skills %}
-            <li>{{ skill }}</li>
+              <li>{{ skill }}</li>
           {% empty %}
-            <li>No hard skills available</li>
+              <li>No hard skills available</li>
           {% endfor %}
-        </ul>
+          </ul>
       </div>
-    </div>
+      </div>
 
-    <div class="card skill-card">
+      <div class="card skill-card">
       <h3>Soft Skill</h3>
       <div class="skill-list">
-        <ul>
+          <ul>
           {% for skill in soft_skills %}
-            <li>{{ skill }}</li>
+              <li>{{ skill }}</li>
           {% empty %}
-            <li>No soft skills available</li>
+              <li>No soft skills available</li>
           {% endfor %}
-        </ul>
+          </ul>
       </div>
-    </div>
+      </div>
   </div>
 
   <!-- Company -->
@@ -263,16 +261,16 @@
   <!-- Learning Path -->
   <div class="card learning-path">
     <h3>Learning Path</h3>
-    {% if skill_gaps %}
+    {% if learning_path %}
       <div class="skill-list">
         <ul>
-          {% for skill in skill_gaps %}
-            <li>{{ skill }}</li>
+          {% for course_title in learning_path %}
+            <li>{{ course_title }}</li>
           {% endfor %}
         </ul>
       </div>
     {% else %}
-      <div class="skill-list">      
+      <div class="skill-list">
         <p class="text-gray-600 text-sm mt-2">No data</p>
       </div>
     {% endif %}

@@ -65,6 +65,23 @@
     margin-bottom: 8px;
     font-size: 16px;
   }
+
+  /* Tambahan: scrollable untuk Learning Path */
+  .scrollable-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding-right: 10px;
+  }
+
+  .scrollable-list ul {
+    list-style: disc;
+    padding-left: 20px;
+    margin: 0;
+  }
+
+  .scrollable-list li {
+    margin-bottom: 8px;
+  }
 </style>
 {% endblock %}
 
@@ -98,17 +115,19 @@
     </div>
 
     <!-- Learning Path -->
-    <div class="card">
+    <div class="card learning-path">
       <h3>Learning Path</h3>
       <div class="card-body">
-        {% if skill_gaps %}
-          <ul class="skill-gap-list">
-            {% for skill in skill_gaps %}
-              <li>{{ skill }}</li>
-            {% endfor %}
-          </ul>
+        {% if learning_path %}
+          <div class="scrollable-list">
+            <ul>
+              {% for course_title in learning_path %}
+                <li>{{ course_title }}</li>
+              {% endfor %}
+            </ul>
+          </div>
         {% else %}
-          <p class="text-muted">No data.</p>
+          <p class="text-gray-600 text-sm mt-2">No data</p>
         {% endif %}
       </div>
     </div>

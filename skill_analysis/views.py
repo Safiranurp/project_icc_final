@@ -53,12 +53,19 @@ def home_student_view(request):
 
     certificates = Certificate.objects.filter(student_id=student_id)
 
-    # Ambil skill gap dari fungsi rekomendasi
-    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
-
     # Persentase skill
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
+
+    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
+    ml_result = get_course_recommendations(str(student_id))
+    recommendations = ml_result.get('recommendations', [])
+
+    # Terapkan dedup agar sesuai dengan Learning Page
+    if recommendations:
+        recommendations = _dedupe_recommendations(recommendations)
+
+    learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
     context = {
         'company_name': company_name,
@@ -66,7 +73,7 @@ def home_student_view(request):
         'certificates': certificates,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
-        'skill_gaps': skill_gaps,  # ✅ Tambahkan skill_gaps ke context
+        'learning_path': learning_path,
     }
 
     return render(request, 'skill_analysis/home_student.html', context)
@@ -286,7 +293,17 @@ def student_view(request):
 
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
-    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
+
+    
+    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
+    ml_result = get_course_recommendations(str(student_id))
+    recommendations = ml_result.get('recommendations', [])
+
+    # Terapkan dedup agar sesuai dengan Learning Page
+    if recommendations:
+        recommendations = _dedupe_recommendations(recommendations)
+
+    learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')] 
 
     return render(request, 'skill_analysis/student.html', {
         'student': student,
@@ -296,7 +313,7 @@ def student_view(request):
         'position': position,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
-        'skill_gaps': skill_gaps,
+        'learning_path': learning_path,
     })
     
 def update_profile_photo(request):
@@ -372,7 +389,16 @@ def student_data_view(request, student_id):
 
     skill_fulfilled = calculate_skill_process(student_id)
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
-    skill_gaps = get_skill_gap_for_student_company(str(student_id)) or []
+
+    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
+    ml_result = get_course_recommendations(str(student_id))
+    recommendations = ml_result.get('recommendations', [])
+
+    # Terapkan dedup agar sesuai dengan Learning Page
+    if recommendations:
+        recommendations = _dedupe_recommendations(recommendations)
+
+    learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
     return render(request, 'skill_analysis/student_data.html', {
         'student': student,
@@ -382,8 +408,9 @@ def student_data_view(request, student_id):
         'position': position,
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
-        'skill_gaps': skill_gaps,
+        'learning_path': learning_path,
     })
+
 
 def calculate_skill_process(student_id):
     # Ambil company yang dipilih student
@@ -1121,9 +1148,12 @@ def skill_list(request):
     if type_query:
         skills = skills.filter(skill_type=type_query)
 
+    duplicate_skill = request.session.pop('duplicate_skill', None)
+
     return render(request, 'skill_analysis/skill_icc.html', {
         'skills': skills,
         'skill_types': skill_types,
+        'duplicate_skill': duplicate_skill,  
     })
 
 def generate_next_skill_id():
@@ -1135,6 +1165,29 @@ def generate_next_skill_id():
         return "SK001"
 
 def add_skill_icc(request):
+    if request.method == 'POST':
+        skill_type = request.POST.get('skillType')
+        skill_name = request.POST.get('skillName')
+        skill_id = generate_next_skill_id()
+
+        existing = Skill.objects.filter(skill_name=skill_name, skill_type=skill_type).first()
+        if existing:
+            request.session['duplicate_skill'] = {
+                'skill_name': existing.skill_name,
+                'skill_type': existing.skill_type
+            }
+            return redirect('skill_icc')
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO skill (skill_id, skill_name, skill_type) VALUES (%s, %s, %s)",
+                [skill_id, skill_name, skill_type]
+            )
+
+        return redirect('skill_icc')
+    else:
+        return redirect('skill_icc')
+
     if request.method == 'POST':
         skill_type = request.POST.get('skillType')
         skill_name = request.POST.get('skillName')

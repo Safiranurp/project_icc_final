@@ -170,8 +170,8 @@
 </a>
 
 <div class="container">
-    <!-- Profile -->
-    <div class="card profile">
+  <!-- Profile -->
+  <div class="card profile">
     {% if student.image and student.image != "null" %}
         <img src="{{ student.image }}" alt="Profile" style="width:150px; height:150px; object-fit:cover; border-radius:50%; border:3px solid #ccc; margin:auto; display:block;">
     {% else %}
@@ -183,64 +183,64 @@
     <p><span class="label">MAJOR</span><br><span class="value">{{ student.major }}</span></p>
     <p><span class="label">BATCH</span><br><span class="value">{{ student.batch }}</span></p>
     <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
-    </div>
+  </div>
 
     <!-- Skill Process -->
-    <div class="card skill-process">
-        <h3>Skill Process</h3>
-        <div class="skill-content">
-        <div class="skill-text-group">
-            <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
-            <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
-            <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
-        </div>
-        <div class="skill-chart">
-            <svg viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
-            <circle
-                cx="18"
-                cy="18"
-                r="16"
-                fill="none"
-                stroke="#4b456f"
-                stroke-width="4"
-                stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
-                stroke-linecap="round"
-                transform="rotate(-90 18 18)"
-            />
-            </svg>
-        </div>
-        </div>
+  <div class="card skill-process">
+    <h3>Skill Process</h3>
+    <div class="skill-content">
+      <div class="skill-text-group">
+        <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
+        <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
+        <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+      </div>
+      <div class="skill-chart">
+        <svg viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
+          <circle
+            cx="18"
+            cy="18"
+            r="16"
+            fill="none"
+            stroke="#4b456f"
+            stroke-width="4"
+            stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
+            stroke-linecap="round"
+            transform="rotate(-90 18 18)"
+          />
+        </svg>
+      </div>
     </div>
+  </div>
 
-    <!-- Hard Skill and Soft Skill -->
-    <div class="skills-area">
-        <div class="card skill-card">
-        <h3>Hard Skill</h3>
-        <div class="skill-list">
-            <ul>
-            {% for skill in hard_skills %}
-                <li>{{ skill }}</li>
-            {% empty %}
-                <li>No hard skills available</li>
-            {% endfor %}
-            </ul>
-        </div>
-        </div>
+  <!-- Hard Skill and Soft Skill -->
+  <div class="skills-area">
+      <div class="card skill-card">
+      <h3>Hard Skill</h3>
+      <div class="skill-list">
+          <ul>
+          {% for skill in hard_skills %}
+              <li>{{ skill }}</li>
+          {% empty %}
+              <li>No hard skills available</li>
+          {% endfor %}
+          </ul>
+      </div>
+      </div>
 
-        <div class="card skill-card">
-        <h3>Soft Skill</h3>
-        <div class="skill-list">
-            <ul>
-            {% for skill in soft_skills %}
-                <li>{{ skill }}</li>
-            {% empty %}
-                <li>No soft skills available</li>
-            {% endfor %}
-            </ul>
-        </div>
-        </div>
-    </div>
+      <div class="card skill-card">
+      <h3>Soft Skill</h3>
+      <div class="skill-list">
+          <ul>
+          {% for skill in soft_skills %}
+              <li>{{ skill }}</li>
+          {% empty %}
+              <li>No soft skills available</li>
+          {% endfor %}
+          </ul>
+      </div>
+      </div>
+  </div>
 
     <!-- Company -->
     <div class="card company">
@@ -254,19 +254,20 @@
   <!-- Learning Path -->
   <div class="card learning-path">
     <h3>Learning Path</h3>
-    {% if skill_gaps %}
+    {% if learning_path %}
       <div class="skill-list">
         <ul>
-          {% for skill in skill_gaps %}
-            <li>{{ skill }}</li>
+          {% for course_title in learning_path %}
+            <li>{{ course_title }}</li>
           {% endfor %}
         </ul>
       </div>
     {% else %}
-      <div class="skill-list">      
+      <div class="skill-list">
         <p class="text-gray-600 text-sm mt-2">No data</p>
       </div>
     {% endif %}
   </div>
+
 </div>
 {% endblock %}

@@ -3,6 +3,17 @@
 {% block title %}List Skill{% endblock %}
 
 {% block content %}
+
+{% if duplicate_skill %}
+<div class="alert alert-warning mt-3">
+  <strong>Skill already exists!</strong>
+  <ul>
+    <li><strong>Name:</strong> {{ duplicate_skill.skill_name }}</li>
+    <li><strong>Type:</strong> {{ duplicate_skill.skill_type }}</li>
+  </ul>
+</div>
+{% endif %}
+
 <div class="content-box">
   <h2>List Skill</h2>
 
