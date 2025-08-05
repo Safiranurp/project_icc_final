@@ -24,11 +24,11 @@
               <tr>
                 <td>{{ skill.skill_name }}</td>
                 <td>{{ skill.skill_type }}</td>
-                <td>
-                  <a href="{% url 'delete_skill' skill.skill_name %}" 
+                 <td>
+                  <a href="{% url 'delete_skill' skill.skill_name|urlencode %}"  
                     class="btn btn-sm btn-danger"
                     onclick="return confirm('Delete this skill?');">🗑</a>
-                </td>
+                </td>
               </tr>
             {% endfor %}
           {% else %}

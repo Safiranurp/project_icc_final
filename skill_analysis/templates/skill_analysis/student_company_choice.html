@@ -1,0 +1,43 @@
+{% extends 'base_student.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h3>Student Company Choice</h3>
+        <a href="{% url 'internship' %}" class="btn btn-success">+ Add</a>
+    </div>
+    <div class="card-body">
+        <table class="table table-bordered table-striped">
+            <thead>
+                <tr>
+                    <th>No</th>
+                    <th>Company Name</th>
+                    <th>Position</th>
+                    <th>Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for choice in choices %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td>{{ choice.company_name }}</td>
+                    <td>{{ choice.position }}</td>
+                    <td>
+                        <form method="post" action="{% url 'delete_internship_choice' choice.id %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this internship choice?');">
+                                <i class="fas fa-trash-alt"></i> Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">No choices available</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

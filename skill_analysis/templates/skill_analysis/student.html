@@ -8,11 +8,11 @@
 <style>
   .container {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1.2fr 2fr;
     grid-template-areas:
-      "profile skill"
+      "profile learning"
       "profile skills"
-      "company learning";
+      "company skill";
     gap: 20px;
     max-width: 1100px;
     margin: auto;
@@ -56,6 +56,7 @@
     font-size: 16px;
     font-weight: bold;
   }
+  
   .skill-process {
     grid-area: skill;
     padding: 0;
@@ -152,77 +153,80 @@
     width: 120px;
     height: 120px;
   }
+
+  .dropdown-select {
+    padding: 8px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    width: 100%; /* tambahkan ini agar tidak sempit */
+    box-sizing: border-box; /* agar padding tidak menambah ukuran luar */
+  }
+
+  .dropdown-select:hover {
+    border-color: #999;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 
 <div class="container">
-    <!-- Profile -->
-    <div class="card profile" style="text-align: center;">
-        <form method="POST" enctype="multipart/form-data" action="{% url 'update_profile_photo' %}">
-            {% csrf_token %}
-            <div style="position: relative; display: inline-block;">
-                <!-- Foto Profil -->
-                <img id="profileImage"
-                    src="{% if student.image %}{{ student.image }}{% else %}{% static '_analysis/images/default.jpg' %}{% endif %}"
-                    alt="Profile"
-                    style="width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #ccc;">
+  <!-- Profile -->
+  <div class="card profile" style="text-align: center;">
+      <form method="POST" enctype="multipart/form-data" action="{% url 'update_profile_photo' %}">
+          {% csrf_token %}
+          <div style="position: relative; display: inline-block;">
+              <!-- Foto Profil -->
+              <img id="profileImage"
+                  src="{% if student.image %}{{ student.image }}{% else %}{% static '_analysis/images/default.jpg' %}{% endif %}"
+                  alt="Profile"
+                  style="width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #ccc;">
 
-                <!-- Icon Kamera -->
-                <label for="imageUpload"
-                    style="position: absolute; bottom: 0px; right: 0px; width: 28px; height: 28px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px rgba(0,0,0,0.2); cursor: pointer;">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="width: 16px; height: 16px; fill: black;">
-                        <path d="M10.5 2a.5.5 0 0 1 .416.223l.737 1.104H13a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.327a1 1 0 0 1 1-1h1.347l.737-1.104A.5.5 0 0 1 5.5 2h5zM8 5.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
-                    </svg>
-                </label>
+              <!-- Icon Kamera -->
+              <label for="imageUpload"
+                  style="position: absolute; bottom: 0px; right: 0px; width: 28px; height: 28px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px rgba(0,0,0,0.2); cursor: pointer;">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="width: 16px; height: 16px; fill: black;">
+                      <path d="M10.5 2a.5.5 0 0 1 .416.223l.737 1.104h53a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.327a1 1 0 0 1 1-1h5.347l.737-1.104A.5.5 0 0 1 5.5 2h5zM8 5.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                  </svg>
+              </label>
 
-                <!-- Input File -->
-                <input type="file" id="imageUpload" name="image" accept="image/*" onchange="this.form.submit()" style="display: none;">
-            </div>
-        </form>
+              <!-- Input File -->
+              <input type="file" id="imageUpload" name="image" accept="image/*" onchange="this.form.submit()" style="display: none;">
+          </div>
+      </form>
 
-        <!-- Informasi Profil -->
-        <div style="margin-top: 16px; text-align: left;">
-            <p><span class="label">NAME</span><br><span class="value">{{ student.full_name }}</span></p>
-            <p><span class="label">STUDENT ID</span><br><span class="value">{{ student.student_id }}</span></p>
-            <p><span class="label">MAJOR</span><br><span class="value">{{ student.major }}</span></p>
-            <p><span class="label">BATCH</span><br><span class="value">{{ student.batch }}</span></p>
-            <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
-        </div>
-    </div>
-
-  <!--  Process -->
-  <div class="card -process">
-    <h3> Process</h3>
-    <div class="skill-content">
-      <div class="skill-text-group">
-        <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
-        <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
-        <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+      <!-- Informasi Profil -->
+      <div style="margin-top: 16px; text-align: left;">
+          <p><span class="label">NAME</span><br><span class="value">{{ student.full_name }}</span></p>
+          <p><span class="label">STUDENT ID</span><br><span class="value">{{ student.student_id }}</span></p>
+          <p><span class="label">MAJOR</span><br><span class="value">{{ student.major }}</span></p>
+          <p><span class="label">BATCH</span><br><span class="value">{{ student.batch }}</span></p>
+          <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
       </div>
-      <div class="skill-chart">
-        <svg viewBox="0 0 36 36">
-          <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
-          <circle
-            cx="18"
-            cy="18"
-            r="16"
-            fill="none"
-            stroke="#4b456f"
-            stroke-width="4"
-            stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
-            stroke-linecap="round"
-            transform="rotate(-90 18 18)"
-          />
-        </svg>
+  </div>
+    
+  <!-- Learning Path -->
+  <div class="card learning-path">
+    <h3>Learning Path</h3>
+    {% if learning_path %}
+      <div class="skill-list">
+        <ul>
+          {% for course_title in learning_path %}
+            <li>{{ course_title }}</li>
+          {% endfor %}
+        </ul>
       </div>
-    </div>
+    {% else %}
+      <div class="skill-list">
+        <p class="text-gray-600 text-sm mt-2">No data</p>
+      </div>
+    {% endif %}
   </div>
 
   <!-- Hard Skill and Soft Skill -->
   <div class="skills-area">
-      <div class="card skill-card">
+    <div class="card skill-card">
       <h3>Hard Skill</h3>
       <div class="skill-list">
           <ul>
@@ -246,35 +250,76 @@
           {% endfor %}
           </ul>
       </div>
-      </div>
+    </div>
   </div>
 
   <!-- Company -->
   <div class="card company">
     <h3>Internship Target</h3>
     <div class="company-content">
-      <p><strong>Company :</strong> {{ company_name }}</p>
-      <p><strong>Position :</strong> {{ position }}</p>
+      <form method="get">
+        <label for="internship_id"><strong>Select Internship:</strong></label>
+        <select name="internship_id" id="internship_id" class="dropdown-select" onchange="this.form.submit()">
+          {% for option in internship_dropdown %}
+            <option value="{{ option.id }}" {% if option.id == selected_internship_id %}selected{% endif %}>
+              {{ option.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+      <div class="mt-3">
+        <p><strong>Company :</strong> {{ company_name }}</p>
+        <p><strong>Position :</strong> {{ position }}</p>
+      </div>
     </div>
   </div>
 
-  <!-- Learning Path -->
-  <div class="card learning-path">
-    <h3>Learning Path</h3>
-    {% if learning_path %}
-      <div class="skill-list">
-        <ul>
-          {% for course_title in learning_path %}
-            <li>{{ course_title }}</li>
-          {% endfor %}
-        </ul>
+  <!-- Skill Process -->
+  <div class="card skill-process">
+      <h3>Skill Process</h3>
+      <h5>{{ company_name }} - {{ position }}</h5>
+      
+      <div class="skill-content">
+        <div class="skill-text-group">
+            <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
+            <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
+            <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+        </div>
+        <div class="skill-chart">
+            <svg viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
+                <circle
+                    cx="18"
+                    cy="18"
+                    r="16"
+                    fill="none"
+                    stroke="#4b456f"
+                    stroke-width="4"
+                    stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
+                    stroke-linecap="round"
+                    transform="rotate(-90 18 18)"
+                />
+            </svg>
+        </div>
       </div>
-    {% else %}
-      <div class="skill-list">
-        <p class="text-gray-600 text-sm mt-2">No data</p>
-      </div>
-    {% endif %}
   </div>
 
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const internshipSelect = document.getElementById('internship_id');
+        
+        internshipSelect.addEventListener('change', function() {
+            // Submit form saat dropdown berubah
+            this.form.submit();
+        });
+        
+        // Auto-select pilihan terbaru saat pertama kali load
+        const latestOption = document.querySelector('#internship_id option[selected]');
+        if (latestOption) {
+            latestOption.selected = true;
+        }
+    });
+  </script>
 </div>
+
 {% endblock %}

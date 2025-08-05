@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Count
 from django.db.models.functions import ExtractYear
 from collections import defaultdict
+from urllib.parse import unquote
 
 from .train_random_forest import (
     run_course_recommendation as get_course_recommendations,
@@ -43,18 +44,35 @@ def home_student_view(request):
     if not student_id:
         return redirect('login')
 
-    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    # Get all student skills
+    student_skills = StudentSkill.objects.filter(student_id=student_id)
+
+    # Get internship selection (from GET param or latest)
+    internship_id = request.GET.get('internship_id')
+    internship = None
+    
+    # Get all possible internship choices for dropdown
+    internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
+    
+    # Set default to most recent if no selection
+    if not internship_id and internship_options.exists():
+        internship = internship_options.first()
+        internship_id = internship.id
+    elif internship_id:
+        internship = internship_options.filter(id=internship_id).first()
+
+    # Initialize company info
     company_name = "-"
     position = "-"
-
-    if internship:
-        company_name = internship.company.company_name
-        position = internship.company.position
+    
+    if internship and internship.company:
+        company_name = internship.company.company_name or "-"
+        position = internship.company.position or "-"
 
     certificates = Certificate.objects.filter(student_id=student_id)
 
     # Persentase skill
-    skill_fulfilled = calculate_skill_process(student_id)
+    skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
     # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
@@ -67,6 +85,15 @@ def home_student_view(request):
 
     learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
+    # Prepare dropdown options
+    internship_dropdown = []
+    for option in internship_options:
+        if option.company:
+            internship_dropdown.append({
+                'id': option.id,
+                'label': f"{option.company.company_name} - {option.company.position}"
+            })
+
     context = {
         'company_name': company_name,
         'position': position,
@@ -74,6 +101,8 @@ def home_student_view(request):
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
         'learning_path': learning_path,
+        'internship_dropdown': internship_dropdown,
+        'selected_internship_id': internship.id if internship else None,
     }
 
     return render(request, 'skill_analysis/home_student.html', context)
@@ -270,18 +299,32 @@ def student_view(request):
     except Student.DoesNotExist:
         return render(request, 'skill_analysis/student.html', {'error': 'Student not found'})
 
+    # Get all student skills
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    # Get internship selection (from GET param or latest)
+    internship_id = request.GET.get('internship_id')
+    internship = None
+    
+    # Get all possible internship choices for dropdown
+    internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
+    
+    # Set default to most recent if no selection
+    if not internship_id and internship_options.exists():
+        internship = internship_options.first()
+        internship_id = internship.id
+    elif internship_id:
+        internship = internship_options.filter(id=internship_id).first()
+
+    # Initialize company info
     company_name = "-"
     position = "-"
+    
+    if internship and internship.company:
+        company_name = internship.company.company_name or "-"
+        position = internship.company.position or "-"
 
-    if internship and internship.company_id:
-        company = CompanyRequirement.objects.filter(cr_id=internship.company_id).first()
-        if company:
-            company_name = company.company_name or "-"
-            position = company.position or "-"
-
+    # Process student skills
     hard_skills = []
     soft_skills = []
 
@@ -291,19 +334,26 @@ def student_view(request):
         if skill.soft_skill:
             soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
 
-    skill_fulfilled = calculate_skill_process(student_id)
+    # Calculate skill match percentage
+    skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
-    
-    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
+    # Get learning path recommendations
     ml_result = get_course_recommendations(str(student_id))
     recommendations = ml_result.get('recommendations', [])
-
-    # Terapkan dedup agar sesuai dengan Learning Page
     if recommendations:
         recommendations = _dedupe_recommendations(recommendations)
 
-    learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')] 
+    learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
+
+    # Prepare dropdown options
+    internship_dropdown = []
+    for option in internship_options:
+        if option.company:
+            internship_dropdown.append({
+                'id': option.id,
+                'label': f"{option.company.company_name} - {option.company.position}"
+            })
 
     return render(request, 'skill_analysis/student.html', {
         'student': student,
@@ -314,8 +364,10 @@ def student_view(request):
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
         'learning_path': learning_path,
+        'internship_dropdown': internship_dropdown,
+        'selected_internship_id': internship.id if internship else None,
     })
-    
+
 def update_profile_photo(request):
     if request.method == 'POST' and request.FILES.get('image'):
         student_id = request.session.get('student_id')
@@ -368,15 +420,27 @@ def student_data_view(request, student_id):
     student = get_object_or_404(Student, student_id=student_id)
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    internship = StudentCompanyChoice.objects.filter(student_id=student_id).first()
+    # Get internship selection (from GET param or latest)
+    internship_id = request.GET.get('internship_id')
+    internship = None
+    
+    # Get all possible internship choices for dropdown
+    internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
+    
+    # Set default to most recent if no selection
+    if not internship_id and internship_options.exists():
+        internship = internship_options.first()
+        internship_id = internship.id
+    elif internship_id:
+        internship = internship_options.filter(id=internship_id).first()
+
+    # Initialize company info
     company_name = "-"
     position = "-"
-
-    if internship and internship.company_id:
-        company = CompanyRequirement.objects.filter(cr_id=internship.company_id).first()
-        if company:
-            company_name = company.company_name or "-"
-            position = company.position or "-"
+    
+    if internship and internship.company:
+        company_name = internship.company.company_name or "-"
+        position = internship.company.position or "-"
 
     hard_skills = []
     soft_skills = []
@@ -387,7 +451,8 @@ def student_data_view(request, student_id):
         if skill.soft_skill:
             soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
 
-    skill_fulfilled = calculate_skill_process(student_id)
+    # Calculate skill match percentage
+    skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
     # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
@@ -400,6 +465,15 @@ def student_data_view(request, student_id):
 
     learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
+    # Prepare dropdown options
+    internship_dropdown = []
+    for option in internship_options:
+        if option.company:
+            internship_dropdown.append({
+                'id': option.id,
+                'label': f"{option.company.company_name} - {option.company.position}"
+            })
+
     return render(request, 'skill_analysis/student_data.html', {
         'student': student,
         'hard_skills': hard_skills,
@@ -409,12 +483,17 @@ def student_data_view(request, student_id):
         'skill_fulfilled_percent': skill_fulfilled,
         'skill_not_fulfilled_percent': skill_not_fulfilled,
         'learning_path': learning_path,
+        'internship_dropdown': internship_dropdown,
+        'selected_internship_id': internship.id if internship else None,
     })
 
+def calculate_skill_process(student_id, internship_id=None):
+    # Ambil company yang dipilih student berdasarkan internship_id
+    if internship_id:
+        choice = StudentCompanyChoice.objects.filter(student_id=student_id, id=internship_id).first()
+    else:
+        choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
 
-def calculate_skill_process(student_id):
-    # Ambil company yang dipilih student
-    choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
     if not choice or not choice.company_id:
         return 0.0  # jika belum memilih, return 0
 
@@ -425,7 +504,7 @@ def calculate_skill_process(student_id):
     if not required_skills:
         return 0.0
 
-    # Ambil skill student dari StudentSkill (tanpa sertifikat)
+    # Ambil skill student
     skills = StudentSkill.objects.filter(student_id=student_id)
     student_hard = set()
     student_soft = set()
@@ -436,9 +515,9 @@ def calculate_skill_process(student_id):
         if s.soft_skill:
             student_soft.update([x.strip().lower() for x in s.soft_skill.split(',')])
 
-    # Hitung bobot (tanpa mempertimbangkan sertifikat)
+    # Hitung bobot (tanpa sertifikat)
     score = 0
-    max_score = len(required_skills)  # 1.0 per skill
+    max_score = len(required_skills)
 
     for skill in required_skills:
         if skill in student_hard or skill in student_soft:
@@ -886,25 +965,69 @@ def skill_icc_view(request):
     return render(request, 'skill_analysis/skill_icc.html')
 
 def internship_view(request):
-    companies = CompanyRequirement.objects.values_list('company_name', flat=True).distinct()
-    return render(request, 'skill_analysis/internship.html', {'companies': companies})
+        companies = CompanyRequirement.objects.values_list('company_name', flat=True).distinct()
+        return render(request, 'skill_analysis/internship.html', {'companies': companies})
+    
+def student_company_choice_view(request):
+    student_id = request.session.get('student_id')
+    if not student_id:
+        messages.error(request, "You must login first.")
+        return redirect('login')
+
+    choices = StudentCompanyChoice.objects.filter(student__student_id=student_id)
+    company_map = {
+        c.cr_id: c.company_name for c in CompanyRequirement.objects.all()
+    }
+    for choice in choices:
+        if choice.company:
+            choice.company_name = company_map.get(choice.company.cr_id, '-')
+        else:
+            choice.company_name = '-'
+
+    context = {
+        'student_id': student_id,
+        'choices': choices
+    }
+    return render(request, 'skill_analysis/student_company_choice.html', context)
+
+def delete_internship_choice(request, choice_id):
+    student_id = request.session.get('student_id')
+    if not student_id:
+        messages.error(request, "You must login first.")
+        return redirect('login')
+    
+    try:
+        choice = StudentCompanyChoice.objects.get(id=choice_id, student__student_id=student_id)
+        choice.delete()
+        messages.success(request, "Internship choice deleted successfully.")
+    except StudentCompanyChoice.DoesNotExist:
+        messages.error(request, "Internship choice not found or you don't have permission to delete it.")
+    
+    return redirect('student_company_choice')
 
 def internship_desc_view(request, company_name):
+    # Ambil semua requirement dari company ini
     company_requirements = CompanyRequirement.objects.filter(company_name=company_name)
     skills = CompanyRequirementSkill.objects.filter(
         cr_id__in=company_requirements.values_list('cr_id', flat=True)
     )
 
+    # Ambil semua skill name
     all_skill_ids = skills.values_list('skill_id', flat=True).distinct()
     skill_dict = {
         s.skill_id: s.skill_name
         for s in Skill.objects.filter(skill_id__in=all_skill_ids)
     }
 
+    # Siapkan data posisi
     positions_data = {}
     for req in company_requirements:
-        soft_ids = skills.filter(cr_id=req.cr_id, skill_type__icontains='Soft Skill').values_list('skill_id', flat=True)
-        hard_ids = skills.filter(cr_id=req.cr_id, skill_type__icontains='Hard Skill').values_list('skill_id', flat=True)
+        soft_ids = skills.filter(
+            cr_id=req.cr_id, skill_type__icontains='Soft Skill'
+        ).values_list('skill_id', flat=True)
+        hard_ids = skills.filter(
+            cr_id=req.cr_id, skill_type__icontains='Hard Skill'
+        ).values_list('skill_id', flat=True)
 
         soft_names = [skill_dict.get(skill_id, skill_id) for skill_id in soft_ids]
         hard_names = [skill_dict.get(skill_id, skill_id) for skill_id in hard_ids]
@@ -913,49 +1036,64 @@ def internship_desc_view(request, company_name):
             'desc': req.job_desc,
             'soft': ', '.join(soft_names),
             'hard': ', '.join(hard_names),
-            'cr_id': req.cr_id  # simpan cr_id juga untuk simpan ke DB
+            'cr_id': req.cr_id  # Simpan cr_id untuk penyimpanan ke DB
         }
 
-    # ✅ Blok POST — cek dan proses pilihan
+    # ✅ Handle POST (student pilih posisi)
     if request.method == "POST":
         student_id = request.session.get('student_id')
         position = request.POST.get('position')
 
+        # Cek login
         if not student_id:
             messages.error(request, "You must login first.")
             return redirect('login')
 
+        # Cek posisi valid
         if position not in positions_data:
             messages.error(request, "Invalid position selected.")
-            return redirect('apply', company_name=company_name)
+            return redirect('internship_desc', company_name=company_name)
 
         cr_id = positions_data[position]['cr_id']
 
-        try:
-            existing_choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
-            if existing_choice:
-                # Update pilihan lama
-                existing_choice.company_id = cr_id
-                existing_choice.position = position
-                existing_choice.created_at = now()
-                existing_choice.save()
-                messages.success(request, "Your previous choice has been updated.")
-            else:
-                # Buat pilihan baru
-                StudentCompanyChoice.objects.create(
-                    student_id=student_id,
-                    company_id=cr_id,
-                    position=position,
-                    created_at=now()
-                )
-                messages.success(request, "You successfully chose this company.")
+        # 🔹 Cek duplikat: company sama + posisi sama
+        duplicate_exists = StudentCompanyChoice.objects.filter(
+            student_id=student_id,
+            company_id=cr_id,
+            position=position
+        ).exists()
 
-            return redirect('internship_desc', company_name=company_name)
+        if duplicate_exists:
+            messages.warning(request, "You have selected this position at this company.")
+            # ✅ Tetap di halaman ini supaya pesan langsung terlihat
+            context = {
+                'company_name': company_name,
+                'positions': list(positions_data.keys()),
+                'positions_data': json.dumps(positions_data)
+            }
+            return render(request, 'skill_analysis/internship_desc.html', context)
+
+        # 🔹 Simpan data baru
+        try:
+            StudentCompanyChoice.objects.create(
+                student_id=student_id,
+                company_id=cr_id,
+                position=position,
+                created_at=now()
+            )
+            messages.success(request, "You successfully chose this company.")
+            return redirect('student_company_choice')
 
         except Exception as e:
             messages.error(request, f"Failed to save your choice: {str(e)}")
-            return redirect('internship_desc', company_name=company_name)
+            context = {
+                'company_name': company_name,
+                'positions': list(positions_data.keys()),
+                'positions_data': json.dumps(positions_data)
+            }
+            return render(request, 'skill_analysis/internship_desc.html', context)
 
+    # ✅ GET request → tampilkan halaman detail company
     context = {
         'company_name': company_name,
         'positions': list(positions_data.keys()),
@@ -1095,6 +1233,9 @@ def add_certificate(request):
     return redirect('skill')
 
 def delete_skill(request, skill_name):
+    # Decode skill_name yang dikirim melalui URL (misal: 'UI%2FUX%20Design' => 'UI/UX Design')
+    skill_name = unquote(skill_name)
+
     student_id = request.session.get("student_id")
     if not student_id:
         return redirect('login')
@@ -1112,7 +1253,7 @@ def delete_skill(request, skill_name):
                 setattr(student_skill, attr, ', '.join(skills))
 
         student_skill.save()
-        messages.success(request, "Skill deleted.")
+        messages.success(request, f"Skill '{skill_name}' deleted.")
     except Exception as e:
         messages.error(request, f"Error deleting skill: {e}")
 

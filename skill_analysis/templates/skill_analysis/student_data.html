@@ -8,11 +8,11 @@
 <style>
   .container {
     display: grid;
-    grid-template-columns: 1fr 2fr;
+    grid-template-columns: 1.2fr 2fr;
     grid-template-areas:
-      "profile skill"
+      "profile learning"
       "profile skills"
-      "company learning";
+      "company skill";
     gap: 20px;
     max-width: 1100px;
     margin: auto;
@@ -152,6 +152,19 @@
     width: 120px;
     height: 120px;
   }
+
+    .dropdown-select {
+    padding: 8px 12px;
+    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    width: 100%; /* tambahkan ini agar tidak sempit */
+    box-sizing: border-box; /* agar padding tidak menambah ukuran luar */
+  }
+
+  .dropdown-select:hover {
+    border-color: #999;
+  }
 </style>
 {% endblock %}
 
@@ -185,32 +198,22 @@
     <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
   </div>
 
-    <!-- Skill Process -->
-  <div class="card skill-process">
-    <h3>Skill Process</h3>
-    <div class="skill-content">
-      <div class="skill-text-group">
-        <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
-        <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
-        <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+  <!-- Learning Path -->
+  <div class="card learning-path">
+    <h3>Learning Path</h3>
+    {% if learning_path %}
+      <div class="skill-list">
+        <ul>
+          {% for course_title in learning_path %}
+            <li>{{ course_title }}</li>
+          {% endfor %}
+        </ul>
       </div>
-      <div class="skill-chart">
-        <svg viewBox="0 0 36 36">
-          <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
-          <circle
-            cx="18"
-            cy="18"
-            r="16"
-            fill="none"
-            stroke="#4b456f"
-            stroke-width="4"
-            stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
-            stroke-linecap="round"
-            transform="rotate(-90 18 18)"
-          />
-        </svg>
+    {% else %}
+      <div class="skill-list">
+        <p class="text-gray-600 text-sm mt-2">No data</p>
       </div>
-    </div>
+    {% endif %}
   </div>
 
   <!-- Hard Skill and Soft Skill -->
@@ -242,32 +245,72 @@
       </div>
   </div>
 
-    <!-- Company -->
-    <div class="card company">
-        <h3>Internship Target</h3>
-        <div class="company-content">
+  <!-- Company -->
+  <div class="card company">
+    <h3>Internship Target</h3>
+    <div class="company-content">
+      <form method="get">
+        <label for="internship_id"><strong>Select Internship:</strong></label>
+        <select name="internship_id" id="internship_id" class="dropdown-select" onchange="this.form.submit()">
+          {% for option in internship_dropdown %}
+            <option value="{{ option.id }}" {% if option.id == selected_internship_id %}selected{% endif %}>
+              {{ option.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </form>
+      <div class="mt-3">
         <p><strong>Company :</strong> {{ company_name }}</p>
         <p><strong>Position :</strong> {{ position }}</p>
-        </div>
+      </div>
     </div>
-
-  <!-- Learning Path -->
-  <div class="card learning-path">
-    <h3>Learning Path</h3>
-    {% if learning_path %}
-      <div class="skill-list">
-        <ul>
-          {% for course_title in learning_path %}
-            <li>{{ course_title }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% else %}
-      <div class="skill-list">
-        <p class="text-gray-600 text-sm mt-2">No data</p>
-      </div>
-    {% endif %}
   </div>
 
+  <!-- Skill Process -->
+  <div class="card skill-process">
+      <h3>Skill Process</h3>
+      <h5>{{ company_name }} - {{ position }}</h5>
+      
+      <div class="skill-content">
+        <div class="skill-text-group">
+            <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
+            <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
+            <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+        </div>
+        <div class="skill-chart">
+            <svg viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
+                <circle
+                    cx="18"
+                    cy="18"
+                    r="16"
+                    fill="none"
+                    stroke="#4b456f"
+                    stroke-width="4"
+                    stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
+                    stroke-linecap="round"
+                    transform="rotate(-90 18 18)"
+                />
+            </svg>
+        </div>
+      </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const internshipSelect = document.getElementById('internship_id');
+        
+        internshipSelect.addEventListener('change', function() {
+            // Submit form saat dropdown berubah
+            this.form.submit();
+        });
+        
+        // Auto-select pilihan terbaru saat pertama kali load
+        const latestOption = document.querySelector('#internship_id option[selected]');
+        if (latestOption) {
+            latestOption.selected = true;
+        }
+    });
+  </script>
 </div>
 {% endblock %}
