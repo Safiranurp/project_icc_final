@@ -30,38 +30,29 @@ from .models import (
     Skill, Course, StudentCompanyChoice
 )
 
-# ============================================================
-# ENHANCED CONSTANTS - Added for strict validation
-# ============================================================
 logger = logging.getLogger(__name__)
 
-# STRICT CONSTANTS - sesuai dengan train_random_forest.py
-MIN_SKILLS_REQUIRED = 3  # MUST match train_random_forest.py
-ENABLE_DEBUG_LOGGING = True  # Set to False in production
+MIN_SKILLS_REQUIRED = 3
+ENABLE_DEBUG_LOGGING = True
 
 def home_student_view(request):
     student_id = request.session.get('student_id')
     if not student_id:
         return redirect('login')
 
-    # Get all student skills
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    # Get internship selection (from GET param or latest)
     internship_id = request.GET.get('internship_id')
     internship = None
     
-    # Get all possible internship choices for dropdown
     internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
     
-    # Set default to most recent if no selection
     if not internship_id and internship_options.exists():
         internship = internship_options.first()
         internship_id = internship.id
     elif internship_id:
         internship = internship_options.filter(id=internship_id).first()
 
-    # Initialize company info
     company_name = "-"
     position = "-"
     
@@ -71,21 +62,17 @@ def home_student_view(request):
 
     certificates = Certificate.objects.filter(student_id=student_id)
 
-    # Persentase skill
     skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
-    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
     ml_result = get_course_recommendations(str(student_id))
     recommendations = ml_result.get('recommendations', [])
 
-    # Terapkan dedup agar sesuai dengan Learning Page
     if recommendations:
         recommendations = _dedupe_recommendations(recommendations)
 
     learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
-    # Prepare dropdown options
     internship_dropdown = []
     for option in internship_options:
         if option.company:
@@ -110,7 +97,6 @@ def home_student_view(request):
 def home_icc_view(request):
     total_students = Student.objects.count()
 
-    # Company paling diminati
     company_counts = (
         StudentCompanyChoice.objects
         .values('company__company_name')
@@ -122,7 +108,6 @@ def home_icc_view(request):
         'data': [item['count'] for item in company_counts]
     }
 
-    # Posisi paling diminati
     position_counts = (
         StudentCompanyChoice.objects
         .values('position')
@@ -134,18 +119,16 @@ def home_icc_view(request):
         'data': [item['count'] for item in position_counts]
     }
 
-    # Hard skill paling banyak dibutuhkan oleh perusahaan yang dipilih
     choices_subquery = StudentCompanyChoice.objects.filter(
         company_id=OuterRef('cr_id')
     )
 
-    # ✨ FIX: ubah cara penulisan filter
     hard_skill_counts = (
         CompanyRequirementSkill.objects
         .filter(
             skill_type__iexact='hard skill'
         )
-        .filter(  # tambahkan filter kedua untuk Exists()
+        .filter( 
             Exists(choices_subquery)
         )
         .values('skill__skill_name')
@@ -166,26 +149,21 @@ def home_icc_view(request):
     })
 
 def analysis_view(request):
-    # Ambil semua tahun unik dari created_at
     all_years = StudentCompanyChoice.objects.annotate(
         year=ExtractYear('created_at')
     ).values_list('year', flat=True).distinct().order_by('-year')
 
-    # Tahun terbaru
     latest_year = all_years[0] if all_years else None
 
-    # === Filter tahun masing-masing card ===
     year_position = request.GET.get('year_position') or latest_year
     year_company = request.GET.get('year_company') or latest_year
     year_list_of_position = request.GET.get('year_list_of_position') or latest_year
     trend_years = request.GET.getlist('trend_years')
 
-    # Jika trend_years tidak dipilih, default ke 3 tahun terbaru
     if not trend_years:
         recent_years = list(all_years)[:3]
         trend_years = [str(y) for y in recent_years]
 
-    # === MOST POPULAR POSITION ===
     most_position_data = []
     if year_position:
         choices = StudentCompanyChoice.objects.filter(created_at__year=year_position)
@@ -199,7 +177,6 @@ def analysis_view(request):
                 'label': f"{item['count']} Student – {percent}% Applicants"
             })
 
-    # === MOST POPULAR COMPANY ===
     most_company_data = []
     if year_company:
         choices = StudentCompanyChoice.objects.filter(created_at__year=year_company)
@@ -224,7 +201,6 @@ def analysis_view(request):
         chart_counts.append(count)
         chart_tooltips.append(f"{count} students")
 
-    # === COMPANY & POSITION LIST ===
     companies = CompanyRequirement.objects \
         .exclude(company_name__isnull=True) \
         .values_list('company_name', flat=True) \
@@ -236,11 +212,9 @@ def analysis_view(request):
     position_data = []
 
     if selected_company:
-        # Ambil daftar posisi dari CompanyRequirement
         positions = CompanyRequirement.objects.filter(company_name=selected_company) \
             .exclude(position__isnull=True).values_list('position', flat=True).distinct()
 
-        # Ambil data student yang memilih company tersebut pada tahun terpilih
         student_choices = StudentCompanyChoice.objects.filter(
             company__company_name=selected_company,
             created_at__year=year_list_of_position
@@ -261,7 +235,6 @@ def analysis_view(request):
                 'percent': percent
             })
 
-        # 🔽 Sortir posisi dari count terbesar ke terkecil
         position_data = sorted(position_data, key=lambda x: x['count'], reverse=True)
 
     return render(request, 'skill_analysis/analysis.html', {
@@ -271,14 +244,12 @@ def analysis_view(request):
         'year_list_of_position': int(year_list_of_position) if year_list_of_position else None,
         'selected_trend_years': [int(y) for y in trend_years],
 
-        # Data utama
         'most_position_data': most_position_data,
         'most_company_data': most_company_data,
         'chart_labels': chart_labels,
         'chart_counts': chart_counts,
         'chart_tooltips': chart_tooltips,
 
-        # List posisi per perusahaan
         'companies': companies,
         'selected_company': selected_company,
         'positions': positions,
@@ -299,24 +270,19 @@ def student_view(request):
     except Student.DoesNotExist:
         return render(request, 'skill_analysis/student.html', {'error': 'Student not found'})
 
-    # Get all student skills
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    # Get internship selection (from GET param or latest)
     internship_id = request.GET.get('internship_id')
     internship = None
     
-    # Get all possible internship choices for dropdown
     internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
     
-    # Set default to most recent if no selection
     if not internship_id and internship_options.exists():
         internship = internship_options.first()
         internship_id = internship.id
     elif internship_id:
         internship = internship_options.filter(id=internship_id).first()
 
-    # Initialize company info
     company_name = "-"
     position = "-"
     
@@ -324,7 +290,6 @@ def student_view(request):
         company_name = internship.company.company_name or "-"
         position = internship.company.position or "-"
 
-    # Process student skills
     hard_skills = []
     soft_skills = []
 
@@ -334,11 +299,9 @@ def student_view(request):
         if skill.soft_skill:
             soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
 
-    # Calculate skill match percentage
     skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
-    # Get learning path recommendations
     ml_result = get_course_recommendations(str(student_id))
     recommendations = ml_result.get('recommendations', [])
     if recommendations:
@@ -346,7 +309,6 @@ def student_view(request):
 
     learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
-    # Prepare dropdown options
     internship_dropdown = []
     for option in internship_options:
         if option.company:
@@ -380,7 +342,6 @@ def update_profile_photo(request):
         fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'student_photos'))
         filename = fs.save(uploaded_file.name, uploaded_file)
 
-        # Simpan path relatif ke field image
         student.image = f"/media/student_photos/{filename}"
         student.save()
 
@@ -420,21 +381,17 @@ def student_data_view(request, student_id):
     student = get_object_or_404(Student, student_id=student_id)
     student_skills = StudentSkill.objects.filter(student_id=student_id)
 
-    # Get internship selection (from GET param or latest)
     internship_id = request.GET.get('internship_id')
     internship = None
     
-    # Get all possible internship choices for dropdown
     internship_options = StudentCompanyChoice.objects.filter(student_id=student_id).select_related('company').order_by('-created_at')
     
-    # Set default to most recent if no selection
     if not internship_id and internship_options.exists():
         internship = internship_options.first()
         internship_id = internship.id
     elif internship_id:
         internship = internship_options.filter(id=internship_id).first()
 
-    # Initialize company info
     company_name = "-"
     position = "-"
     
@@ -451,21 +408,17 @@ def student_data_view(request, student_id):
         if skill.soft_skill:
             soft_skills.extend([s.strip() for s in skill.soft_skill.split(',') if s.strip()])
 
-    # Calculate skill match percentage
     skill_fulfilled = calculate_skill_process(student_id, internship_id) if internship_id else 0.0
     skill_not_fulfilled = round(100 - skill_fulfilled, 2)
 
-    # === Konsisten: gunakan get_course_recommendations dan _dedupe_recommendations ===
     ml_result = get_course_recommendations(str(student_id))
     recommendations = ml_result.get('recommendations', [])
 
-    # Terapkan dedup agar sesuai dengan Learning Page
     if recommendations:
         recommendations = _dedupe_recommendations(recommendations)
 
     learning_path = [rec.get('course_name') for rec in recommendations if rec.get('course_name')]
 
-    # Prepare dropdown options
     internship_dropdown = []
     for option in internship_options:
         if option.company:
@@ -488,23 +441,21 @@ def student_data_view(request, student_id):
     })
 
 def calculate_skill_process(student_id, internship_id=None):
-    # Ambil company yang dipilih student berdasarkan internship_id
+    
     if internship_id:
         choice = StudentCompanyChoice.objects.filter(student_id=student_id, id=internship_id).first()
     else:
         choice = StudentCompanyChoice.objects.filter(student_id=student_id).first()
 
     if not choice or not choice.company_id:
-        return 0.0  # jika belum memilih, return 0
-
-    # Ambil skill requirement dari posisi tersebut
+        return 0.0  
+    
     requirements = CompanyRequirementSkill.objects.filter(cr_id=choice.company_id)
     required_skills = [r.skill.skill_name.strip().lower() for r in requirements if r.skill]
 
     if not required_skills:
         return 0.0
 
-    # Ambil skill student
     skills = StudentSkill.objects.filter(student_id=student_id)
     student_hard = set()
     student_soft = set()
@@ -515,7 +466,6 @@ def calculate_skill_process(student_id, internship_id=None):
         if s.soft_skill:
             student_soft.update([x.strip().lower() for x in s.soft_skill.split(',')])
 
-    # Hitung bobot (tanpa sertifikat)
     score = 0
     max_score = len(required_skills)
 
@@ -561,7 +511,6 @@ def _dedupe_recommendations_enhanced(recommendations: list) -> list:
     if not recommendations:
         return []
 
-    # Group by course_id/course_name
     course_groups = {}
     for rec in recommendations:
         if not isinstance(rec, dict):
@@ -571,16 +520,14 @@ def _dedupe_recommendations_enhanced(recommendations: list) -> list:
             course_groups[key] = []
         course_groups[key].append(rec)
     
-    # Merge duplicates
     merged_recommendations = []
     for course_key, course_list in course_groups.items():
         if len(course_list) == 1:
             merged_recommendations.append(course_list[0])
         else:
-            # Merge duplicate courses by combining skills
+            
             base_course = max(course_list, key=lambda x: x.get('score', 0))
             
-            # Collect all skills from duplicates
             all_covers_skills = set()
             all_reinforces_skills = set()
             all_taught_skills = set()
@@ -594,7 +541,6 @@ def _dedupe_recommendations_enhanced(recommendations: list) -> list:
                 all_taught_skills.update(course.get('all_taught_skills', course.get('teach_skills', [])))
                 all_supports_company_skills.update(course.get('supports_company_skills', []))
                 
-                # Track best score and priority
                 score = course.get('score', 0)
                 if score > highest_score:
                     highest_score = score
@@ -605,20 +551,18 @@ def _dedupe_recommendations_enhanced(recommendations: list) -> list:
                 elif priority == 'Medium' and best_priority != 'High':
                     best_priority = 'Medium'
             
-            # Update base course with merged skills
             base_course.update({
                 'score': highest_score,
                 'priority': best_priority,
                 'covers_skills': sorted(list(all_covers_skills)),
                 'reinforces_skills': sorted(list(all_reinforces_skills)),
                 'all_taught_skills': sorted(list(all_taught_skills)),
-                'teach_skills': sorted(list(all_taught_skills)),  # Backward compatibility
+                'teach_skills': sorted(list(all_taught_skills)),
                 'supports_company_skills': sorted(list(all_supports_company_skills)),
             })
             
             merged_recommendations.append(base_course)
     
-    # Sort by priority and score
     priority_order = {'High': 3, 'Medium': 2, 'Low': 1}
     merged_recommendations.sort(
         key=lambda x: (priority_order.get(x.get('priority', 'Low'), 1), x.get('score', 0)), 
@@ -669,25 +613,47 @@ def learning_view(request):
         if ENABLE_DEBUG_LOGGING:
             logger.info(f"[LEARNING_VIEW] Skills validation: has_skills={has_skills}, count={skills_count}, required={MIN_SKILLS_REQUIRED}")
         
-        # STEP 2: STRICT INTERNSHIP VALIDATION
-        internship_choice = StudentCompanyChoice.objects.filter(student_id=student.student_id).first()
-        has_internship = bool(internship_choice and internship_choice.company_id)
+        # STEP 2: GET ALL STUDENT'S INTERNSHIP CHOICES FOR DROPDOWN
+        internship_choices = StudentCompanyChoice.objects.filter(
+            student_id=student.student_id
+        ).select_related('company').order_by('-created_at')
         
-        company_name = ""
-        if has_internship:
-            try:
-                company_id = internship_choice.company_id
-                company = CompanyRequirement.objects.get(cr_id=company_id)
-                company_name = company.company_name or f"Company ID: {company_id}"
-            except CompanyRequirement.DoesNotExist:
-                has_internship = False
-                if ENABLE_DEBUG_LOGGING:
-                    logger.info(f"[LEARNING_VIEW] Company not found for cr_id={company_id}")
+        # Build recommended companies list for dropdown
+        recommended_companies = []
+        for choice in internship_choices:
+            if choice.company:
+                recommended_companies.append({
+                    'id': choice.id,
+                    'name': choice.company.company_name or f"Company ID: {choice.company.cr_id}",
+                    'position': choice.position or choice.company.position or 'Position not specified'
+                })
+        
+        # STEP 3: DETERMINE SELECTED COMPANY (from GET param or latest choice)
+        selected_company_id = request.GET.get('company_id')
+        selected_internship_choice = None
+        selected_company_name = ""
+        selected_position = ""
+        
+        if selected_company_id:
+            # Find specific choice by ID
+            selected_internship_choice = internship_choices.filter(id=selected_company_id).first()
+        else:
+            # Default to most recent choice
+            selected_internship_choice = internship_choices.first()
+        
+        if selected_internship_choice and selected_internship_choice.company:
+            selected_company_id = selected_internship_choice.id
+            selected_company_name = selected_internship_choice.company.company_name or f"Company ID: {selected_internship_choice.company.cr_id}"
+            selected_position = selected_internship_choice.position or selected_internship_choice.company.position or 'Position not specified'
+        
+        # STEP 4: STRICT INTERNSHIP VALIDATION
+        has_internship = bool(selected_internship_choice and selected_internship_choice.company_id)
         
         if ENABLE_DEBUG_LOGGING:
-            logger.info(f"[LEARNING_VIEW] Internship validation: has_internship={has_internship}")
+            logger.info(f"[LEARNING_VIEW] Internship validation: has_internship={has_internship}, choices_count={internship_choices.count()}")
+            logger.info(f"[LEARNING_VIEW] Selected company: {selected_company_name} - {selected_position}")
         
-        # STEP 3: STRICT GATE - NO RECOMMENDATIONS UNTIL COMPLETE
+        # STEP 5: STRICT GATE - NO RECOMMENDATIONS UNTIL COMPLETE
         if not (has_skills and has_internship):
             completion_message = _build_completion_message(has_skills, has_internship, skills_count)
             
@@ -702,7 +668,6 @@ def learning_view(request):
                 'has_internship': has_internship,
                 'show_completion_guide': True,
                 'completion_message': completion_message,
-                'company_name': company_name,
                 'total_recommendations': 0,
                 'recommendation_stats': {
                     'high_priority_count': 0,
@@ -712,17 +677,22 @@ def learning_view(request):
                 'completion_percentage': (int(has_skills) + int(has_internship)) * 50,
                 'missing_requirements': _build_missing_requirements(has_skills, has_internship, skills_count),
                 'processing_time': round((time.time() - start_time) * 1000, 2),
+                # Company dropdown data
+                'recommended_companies': recommended_companies,
+                'selected_company': selected_company_id,
+                'selected_company_name': selected_company_name,
+                'selected_position': selected_position,
             }
             return render(request, 'skill_analysis/learning.html', context)
 
-        # STEP 4: PROFILE COMPLETE - Generate recommendations
+        # STEP 6: PROFILE COMPLETE - Generate recommendations
         if ENABLE_DEBUG_LOGGING:
             logger.info("[LEARNING_VIEW] Profile complete - generating recommendations")
         
         from .train_random_forest import run_course_recommendation
         
         rec_start_time = time.time()
-        ml_result = run_course_recommendation(str(student.student_id), bypass_validation=False)
+        ml_result = run_course_recommendation(str(student.student_id), internship_id=str(selected_internship_choice.id), bypass_validation=False)
         rec_processing_time = time.time() - rec_start_time
         
         recommendations = ml_result.get('recommendations', [])
@@ -756,7 +726,6 @@ def learning_view(request):
             'has_internship': True,
             'show_completion_guide': False,
             'completion_message': f"Successfully generated {len(recommendations)} personalized course recommendations!",
-            'company_name': company_name,
             'total_recommendations': len(recommendations),
             'recommendation_stats': {
                 'high_priority_count': high_priority_count,
@@ -768,6 +737,11 @@ def learning_view(request):
             'cache_used': cache_used,
             'processing_time': round((time.time() - start_time) * 1000, 2),
             'ml_processing_time': round(rec_processing_time * 1000, 2),
+            # Company dropdown data
+            'recommended_companies': recommended_companies,
+            'selected_company': selected_company_id,
+            'selected_company_name': selected_company_name,
+            'selected_position': selected_position,
         }
         
         if ENABLE_DEBUG_LOGGING:
@@ -796,78 +770,76 @@ def learning_view(request):
             'completion_percentage': 0,
             'missing_requirements': ['Error occurred - please try again'],
             'processing_time': round((time.time() - start_time) * 1000, 2),
+            'recommended_companies': [],
+            'selected_company': None,
+            'selected_company_name': '',
+            'selected_position': '',
         }
         return render(request, 'skill_analysis/learning.html', error_context)
 
-def course_recommendations_view(request):
-    """
-    Dedicated view untuk menampilkan halaman rekomendasi course
-    """
-    student = _get_student_for_request(request)
-    if not student:
-        return redirect('login')
-    
-    try:
-        # Ambil rekomendasi course menggunakan run_course_recommendation
-        recommendations = get_course_recommendations(str(student.student_id))
-        
-        # Ambil skill gap 
-        skill_gaps = get_skill_gap_for_student_company(str(student.student_id))
-        
-        # Deduplicate recommendations
-        if recommendations:
-            recommendations = _dedupe_recommendations(recommendations)
-        
-        context = {
-            'recommendations': recommendations or [],
-            'skill_gaps': skill_gaps or [],
-            'student_id': str(student.student_id),
-            'total_recommendations': len(recommendations) if recommendations else 0,
-            'student': student,
-        }
-        
-        return render(request, 'skill_analysis/learning.html', context)
-        
-    except Exception as e:
-        context = {
-            'error': f'Gagal memuat rekomendasi: {str(e)}',
-            'recommendations': [],
-            'skill_gaps': [],
-            'student': student,
-        }
-        return render(request, 'skill_analysis/learning.html', context)
+# ============================================================
+# 2. ADD this new API endpoint (add it anywhere in the file):
+# ============================================================
 
-def api_course_recommendations(request):
+@csrf_exempt
+def refresh_recommendations_api(request):
     """
-    API endpoint untuk mendapat rekomendasi course (JSON response)
+    API endpoint untuk refresh recommendations berdasarkan company selection
     """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+    
     student = _get_student_for_request(request)
     if not student:
         return JsonResponse({'success': False, 'error': 'Student not found'}, status=401)
+    
+    try:
+        import json
+        data = json.loads(request.body)
+        company_id = data.get('company_id')
         
-    if request.method == 'GET':
+        if not company_id:
+            return JsonResponse({'success': False, 'error': 'Company ID is required'}, status=400)
+        
+        # Verify company choice belongs to student
         try:
-            recommendations = get_course_recommendations(str(student.student_id))
-            skill_gaps = get_skill_gap_for_student_company(str(student.student_id))
-            
-            # Deduplicate recommendations
-            if recommendations:
-                recommendations = _dedupe_recommendations(recommendations)
-            
-            return JsonResponse({
-                'success': True,
-                'data': {
-                    'recommendations': recommendations or [],
-                    'skill_gaps': skill_gaps or [],
-                    'total': len(recommendations) if recommendations else 0
-                }
-            })
-            
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
+            choice = StudentCompanyChoice.objects.get(
+                id=company_id, 
+                student_id=student.student_id
+            )
+        except StudentCompanyChoice.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Invalid company selection'}, status=400)
+        
+        # Clear cache untuk student ini
+        ModelCache.invalidate_all(str(student.student_id))
+        
+        # Generate fresh recommendations
+        from .train_random_forest import run_course_recommendation
+        ml_result = run_course_recommendation(str(student.student_id), bypass_validation=False)
+        
+        recommendations = ml_result.get('recommendations', [])
+        if recommendations:
+            recommendations = _dedupe_recommendations_enhanced(recommendations)
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Recommendations refreshed for {choice.company.company_name}',
+            'data': {
+                'total_recommendations': len(recommendations),
+                'company_name': choice.company.company_name,
+                'position': choice.position or choice.company.position
+            }
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        if ENABLE_DEBUG_LOGGING:
+            logger.error(f"[REFRESH_API] Error: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Error refreshing recommendations: {str(e)}'
+        }, status=500)
     
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
@@ -882,7 +854,6 @@ def refresh_recommendations(request):
         
     if request.method == 'POST':
         try:
-            # Clear cache untuk student ini
             ModelCache.invalidate_all(str(student.student_id))
             
             return JsonResponse({
@@ -908,7 +879,7 @@ def delete_certificate_learning(request, certificate_id):
         if cert.file:
             cert.file.delete(save=False)
         cert.delete()
-        # ✅ FIXED: Invalidate cache with correct student_id type
+        
         ModelCache.invalidate_all(str(student.student_id))
         messages.success(request, "Certificate deleted successfully.")
     except Exception as e:
@@ -947,8 +918,6 @@ def upload_certificate_learning(request):
                 skill_name=skill_name,
                 certificate_name=certificate_name
             )
-            
-            # ✅ Invalidate cache after certificate upload
             ModelCache.invalidate_all(str(student.student_id))
             messages.success(request, "Certificate uploaded successfully.")
             

@@ -70,12 +70,46 @@
         0%, 100% { opacity: 1; }
         50% { opacity: 0.5; }
     }
+
+    .company-selector {
+        transition: all 0.3s ease;
+        border: 2px solid var(--light);
+    }
+
+    .company-selector:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(85, 88, 121, 0.1);
+    }
+
+    .debug-info {
+        font-family: monospace;
+        font-size: 11px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 8px;
+        margin-top: 10px;
+    }
+
+    /* Hide any auto-refresh messages */
+    .auto-refresh-message,
+    .loading-indicator,
+    .refreshing-message,
+    .auto-updating,
+    .auto-refresh-indicator {
+        display: none !important;
+    }
+
+    /* Hide processing time display */
+    .processing-time-display {
+        display: none !important;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="content-area">
-    <!-- Header -->
+    <!-- Header Section -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <div class="flex justify-between items-center">
             <div>
@@ -84,20 +118,87 @@
                     Course Recommendations
                 </h1>
                 <p class="text-gray-600 mt-2">Personalized learning path for your career goals</p>
-                {% if company_name %}
-                <p class="text-sm text-blue-600 mt-1">
-                    <i class="fas fa-building mr-1"></i>
-                    Tailored for: {{ company_name }}
-                </p>
+            </div>
+            {% if processing_time %}
+            <div class="text-right processing-time-display">
+                <div class="text-sm text-gray-500">Processing Time</div>
+                <div class="text-lg font-semibold text-blue-600">{{ processing_time }}ms</div>
+                {% if ml_processing_time %}
+                <div class="text-xs text-gray-400">ML: {{ ml_processing_time }}ms</div>
                 {% endif %}
             </div>
-            <div class="flex gap-2">
-                <button onclick="refreshRecommendations()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-                    <i class="fas fa-sync-alt mr-2"></i>Refresh
-                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Company Selection Section -->
+    {% if recommended_companies %}
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <form method="GET" action="{% url 'learning' %}">
+            <div class="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                <div class="flex-1">
+                    <label for="companySelect" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-building text-blue-600 mr-1"></i>
+                        Select Company ({{ recommended_companies|length }} available):
+                    </label>
+                    <select name="company_id" id="companySelect" class="company-selector w-full px-4 py-3 rounded-lg bg-white focus:outline-none text-gray-700" onchange="this.form.submit()">
+                        <option value="">Choose a company...</option>
+                        {% for company in recommended_companies %}
+                        <option value="{{ company.id }}" {% if selected_company == company.id %}selected{% endif %}>
+                            {{ company.name }} - {{ company.position }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                {% if selected_company %}
+                <div class="flex-1">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <div class="text-sm">
+                            <div class="font-semibold text-blue-800">
+                                {{ selected_company_name }}
+                            </div>
+                            <div class="text-blue-600">
+                                Position: {{ selected_position }}
+                            </div>
+                            {% if cache_used %}
+                            <div class="text-xs text-blue-500 mt-1">
+                                <i class="fas fa-memory mr-1"></i>Loaded from cache
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    {% elif has_internship %}
+    <div class="bg-orange-50 border-l-4 border-orange-400 p-6 mb-6 rounded-r-lg">
+        <div class="flex items-center">
+            <i class="fas fa-exclamation-triangle text-orange-600 mr-3"></i>
+            <div>
+                <h3 class="text-lg font-medium text-orange-800">No Company Choices Found</h3>
+                <p class="text-orange-700">You have internship data but no company choices. Please select an internship company first.</p>
+                <a href="{% url 'internship' %}" class="inline-block mt-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm">
+                    <i class="fas fa-plus mr-1"></i>Select Company
+                </a>
             </div>
         </div>
     </div>
+    {% else %}
+    <div class="bg-gray-50 rounded-lg shadow-md p-6 mb-6 border-2 border-dashed border-gray-300">
+        <div class="text-center">
+            <i class="fas fa-building text-4xl text-gray-400 mb-3"></i>
+            <h3 class="text-lg font-semibold text-gray-600 mb-2">Company Selection Unavailable</h3>
+            <p class="text-gray-500 mb-4">Please select an internship first to see relevant company recommendations.</p>
+            <a href="{% url 'internship' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg inline-flex items-center">
+                <i class="fas fa-plus mr-2"></i>
+                Choose Internship
+            </a>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Profile Completion Guide -->
     {% if show_completion_guide %}
@@ -105,10 +206,10 @@
         <div class="flex items-start">
             <i class="fas fa-exclamation-triangle text-yellow-600 text-xl mr-3 mt-1"></i>
             <div class="flex-1">
-                <h3 class="text-lg font-medium text-yellow-800 mb-2">Complete Your Profile</h3>
+                <h3 class="text-lg font-medium text-yellow-800 mb-2">Complete Your Profile for Recommendations</h3>
                 <p class="text-yellow-700 mb-4">{{ completion_message }}</p>
-                
-                <!-- Progress Bar -->
+
+                <!-- Profile Completion Progress -->
                 <div class="mb-4">
                     <div class="flex justify-between text-sm text-yellow-700 mb-1">
                         <span>Profile Completion</span>
@@ -122,7 +223,7 @@
                 <!-- Missing Requirements -->
                 {% if missing_requirements %}
                 <div class="mb-4">
-                    <h4 class="font-semibold text-yellow-800 mb-2">To Do:</h4>
+                    <h4 class="font-semibold text-yellow-800 mb-2">Missing Requirements:</h4>
                     <ul class="space-y-1">
                         {% for req in missing_requirements %}
                         <li class="flex items-center text-yellow-700">
@@ -152,7 +253,7 @@
     </div>
     {% endif %}
 
-    <!-- Skills That Need Development -->
+    <!-- Skills Gap Analysis -->
     {% if skill_gaps %}
     <div class="bg-red-50 border-l-4 border-red-400 p-6 mb-6 rounded-r-lg">
         <h3 class="text-lg font-medium text-red-800 mb-3">
@@ -188,22 +289,25 @@
         <h3 class="text-lg font-semibold text-gray-800 mb-4">
             <i class="fas fa-chart-bar text-green-600 mr-2"></i>
             Recommendations Summary
+            {% if selected_company_name %}
+            <span class="text-sm text-gray-600 font-normal">for {{ selected_company_name }}</span>
+            {% endif %}
         </h3>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div class="bg-blue-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-blue-600">{{ total_recommendations }}</div>
+                <div class="text-2xl font-bold text-blue-600">{{ total_recommendations|default:0 }}</div>
                 <div class="text-sm text-blue-700">Total Courses</div>
             </div>
             <div class="bg-red-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-red-600">{{ recommendation_stats.high_priority_count }}</div>
+                <div class="text-2xl font-bold text-red-600">{{ recommendation_stats.high_priority_count|default:0 }}</div>
                 <div class="text-sm text-red-700">High Priority</div>
             </div>
             <div class="bg-yellow-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-yellow-600">{{ recommendation_stats.medium_priority_count }}</div>
+                <div class="text-2xl font-bold text-yellow-600">{{ recommendation_stats.medium_priority_count|default:0 }}</div>
                 <div class="text-sm text-yellow-700">Medium Priority</div>
             </div>
             <div class="bg-orange-50 p-4 rounded-lg text-center">
-                <div class="text-2xl font-bold text-orange-600">{{ skill_gaps|length }}</div>
+                <div class="text-2xl font-bold text-orange-600">{{ skill_gaps|length|default:0 }}</div>
                 <div class="text-sm text-orange-700">Skills to Develop</div>
             </div>
         </div>
@@ -232,20 +336,22 @@
                     {% endif %}
                 </div>
 
-                <!-- Course Title & Info -->
+                <!-- Course Header -->
                 <div class="pr-20 mb-4">
                     <h3 class="text-xl font-bold text-gray-800 mb-2">{{ rec.course_name }}</h3>
                     <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <span class="bg-gray-100 px-2 py-1 rounded">{{ rec.course_category }}</span>
-                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ rec.difficulty_level }}</span>
+                        <span class="bg-gray-100 px-2 py-1 rounded">{{ rec.course_category|default:"General" }}</span>
+                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ rec.difficulty_level|default:"Intermediate" }}</span>
                     </div>
+                    {% if rec.description %}
                     <p class="text-sm text-gray-600">{{ rec.description }}</p>
+                    {% endif %}
                 </div>
 
-                <!-- Score -->
+                <!-- Scores and Metrics -->
                 <div class="flex justify-between items-center mb-4">
                     <div class="text-center">
-                        <div class="text-2xl font-bold text-blue-600">{{ rec.score }}</div>
+                        <div class="text-2xl font-bold text-blue-600">{{ rec.score|default:0 }}</div>
                         <div class="text-xs text-gray-500">Relevance Score</div>
                     </div>
                     {% if rec.metadata.recommendation_confidence %}
@@ -256,7 +362,7 @@
                     {% endif %}
                 </div>
 
-                <!-- Skills Information -->
+                <!-- Skills Coverage -->
                 {% if rec.covers_skills %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-green-700 mb-2">
@@ -273,6 +379,7 @@
                 </div>
                 {% endif %}
 
+                <!-- Skills Reinforcement -->
                 {% if rec.reinforces_skills %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-blue-700 mb-2">
@@ -307,7 +414,7 @@
                 </div>
                 {% endif %}
 
-                <!-- Reasons -->
+                <!-- Recommendation Reasons -->
                 {% if rec.reasons %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-gray-700 mb-2">
@@ -339,42 +446,62 @@
         {% endfor %}
     </div>
 
+    <!-- Empty State -->
     {% else %}
-    <!-- No Recommendations State -->
     <div class="bg-white rounded-lg shadow-md p-12 text-center">
         <div class="pulse-animation mb-4">
             <i class="fas fa-graduation-cap text-6xl text-gray-300"></i>
         </div>
         <h3 class="text-xl font-semibold text-gray-600 mb-2">
             {% if show_completion_guide %}
-                Complete Your Profile
+                Complete Your Profile to See Recommendations
             {% else %}
-                No Recommendations Available
+                No Course Recommendations Available
             {% endif %}
         </h3>
         <p class="text-gray-500 mb-6">
             {% if show_completion_guide %}
                 Add your skills and select an internship to get personalized course recommendations.
+            {% elif has_skills and has_internship %}
+                We're generating personalized recommendations for your profile. This may take a moment.
             {% else %}
-                We're working on finding the best courses for you. Try refreshing or check back later.
+                Complete your profile to see tailored course recommendations.
             {% endif %}
         </p>
         <div class="flex justify-center gap-2">
-            {% if show_completion_guide %}
-                {% if not has_skills %}
-                <a href="{% url 'skill' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
-                    <i class="fas fa-plus mr-2"></i>Add Skills
-                </a>
-                {% endif %}
-                {% if not has_internship %}
-                <a href="{% url 'internship' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
-                    <i class="fas fa-building mr-2"></i>Choose Internship
-                </a>
-                {% endif %}
+            {% if not has_skills %}
+            <a href="{% url 'skill' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                <i class="fas fa-plus mr-2"></i>Add Skills
+            </a>
             {% endif %}
-            <button onclick="refreshRecommendations()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg">
-                <i class="fas fa-sync-alt mr-2"></i>Try Again
+            {% if not has_internship %}
+            <a href="{% url 'internship' %}" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg">
+                <i class="fas fa-building mr-2"></i>Choose Internship
+            </a>
+            {% endif %}
+            {% if has_skills and has_internship %}
+            <button onclick="window.location.reload()" class="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg">
+                <i class="fas fa-refresh mr-2"></i>Refresh
             </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Debug Information (only shown when ENABLE_DEBUG_LOGGING is True) -->
+    {% if debug_info %}
+    <div class="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
+        <h4 class="text-sm font-semibold text-gray-700 mb-2">
+            <i class="fas fa-bug mr-1"></i>Debug Information
+        </h4>
+        <div class="debug-info">
+            <div><strong>Selected Company ID:</strong> {{ debug_info.selected_company_id }}</div>
+            <div><strong>Company Changed:</strong> {{ debug_info.company_changed }}</div>
+            <div><strong>Cache Used:</strong> {{ debug_info.cache_used }}</div>
+            <div><strong>Total Internship Choices:</strong> {{ debug_info.total_internship_choices }}</div>
+            <div><strong>Has Skills:</strong> {{ has_skills }}</div>
+            <div><strong>Has Internship:</strong> {{ has_internship }}</div>
+            <div><strong>Completion Percentage:</strong> {{ completion_percentage }}%</div>
         </div>
     </div>
     {% endif %}
@@ -382,48 +509,27 @@
 
 {% csrf_token %}
 <script>
-function refreshRecommendations() {
-    const button = event.target.closest('button');
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
-    button.disabled = true;
-
-    fetch('/learning/api/refresh-recommendations/', {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            'Content-Type': 'application/json',
-        },
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Show success message briefly before reload
-            button.innerHTML = '<i class="fas fa-check mr-2"></i>Success!';
-            setTimeout(() => {
-                window.location.reload();
-            }, 1000);
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Network error occurred while refreshing recommendations');
-        button.innerHTML = originalText;
-        button.disabled = false;
+// Hide any auto-refresh elements that might be added dynamically
+document.addEventListener('DOMContentLoaded', function() {
+    // Hide any elements with auto-refresh related classes
+    const elementsToHide = document.querySelectorAll(
+        '.auto-refresh-message, .loading-indicator, .refreshing-message, .auto-updating, .auto-refresh-indicator'
+    );
+    
+    elementsToHide.forEach(function(element) {
+        element.style.display = 'none';
     });
-}
-
-// Auto-refresh if no recommendations and profile is complete
-{% if has_skills and has_internship and not recommendations %}
-setTimeout(() => {
-    if (confirm('Your profile is complete but no recommendations were found. Would you like to refresh automatically?')) {
-        refreshRecommendations();
-    }
-}, 3000);
-{% endif %}
+    
+    // Remove any text containing "auto-refresh" or similar
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(function(element) {
+        if (element.children.length === 0) { // Only text nodes
+            const text = element.textContent || element.innerText;
+            if (text && text.toLowerCase().includes('auto-refresh')) {
+                element.style.display = 'none';
+            }
+        }
+    });
+});
 </script>
 {% endblock %}

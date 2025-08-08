@@ -1276,21 +1276,13 @@ class EnhancedCourseRecommendationEngine:
 # ============================================================
 
 def get_course_recommendations(student_id: str, company_id: Optional[str] = None, 
-                             bypass_validation: bool = False) -> Dict[str, Any]:
+                               bypass_validation: bool = False) -> Dict[str, Any]:
     """
-    STRICT: Get course recommendations - NO BYPASS allowed for incomplete profiles
-    
-    Args:
-        student_id: Student ID
-        company_id: Optional company ID
-        bypass_validation: IGNORED - validation is always enforced
-    
-    Returns:
-        Dict containing recommendation data (empty if profile incomplete)
+    Get course recommendations based on selected company
     """
     engine = EnhancedCourseRecommendationEngine()
-    # Force strict validation - no bypass allowed
     return engine.get_recommendations(student_id, company_id, bypass_validation=False)
+
 
 def get_skill_gap_for_student_company(student_id: str, company_id: Optional[str] = None) -> List[str]:
     """Get skill gap between student and company requirements"""
@@ -1377,31 +1369,43 @@ def get_student_learning_analytics(student_id: str) -> Dict[str, Any]:
 # MAIN WRAPPER FUNCTION - STRICT VERSION
 # ============================================================
 
-def run_course_recommendation(student_id: str, bypass_validation: bool = False) -> Dict[str, Any]:
+def run_course_recommendation(student_id: str, internship_id: str = None, bypass_validation=False):
     """
     STRICT: Main wrapper function - NO BYPASS allowed
-    
+
     Args:
         student_id: Student ID
+        internship_id: ID pilihan magang (StudentCompanyChoice)
         bypass_validation: IGNORED - validation always enforced
-        
+
     Returns:
         Dict dengan recommendation data (empty if profile incomplete)
     """
-    # Get main recommendations (bypass_validation is ignored)
-    recommendations = get_course_recommendations(student_id, bypass_validation=False)
-    
-    # Only get additional analytics if profile is complete AND has recommendations
-    if (recommendations.get("has_skills") and 
-        recommendations.get("has_internship") and 
-        recommendations.get("recommendations")):
-        
+    # Ambil company_id dari internship_id
+    company_id = None
+    if internship_id:
         try:
-            analytics = get_student_learning_analytics(student_id)
+            from skill_analysis.models import StudentCompanyChoice
+            choice = StudentCompanyChoice.objects.get(id=internship_id)
+            company_id = str(choice.company_id)
+        except StudentCompanyChoice.DoesNotExist:
+            logger.warning(f"Internship choice ID {internship_id} not found for student {student_id}")
+
+    # Kirim company_id ke fungsi rekomendasi
+    recommendations = get_course_recommendations(student_id, company_id=company_id, bypass_validation=False)
+
+    # Tambah analytics jika profile lengkap
+    if (
+        recommendations.get("has_skills") and 
+        recommendations.get("has_internship") and 
+        recommendations.get("recommendations")
+    ):
+        try:
+            analytics = get_student_learning_analytics(student_id, company_id=company_id)
             recommendations["learning_analytics"] = analytics
         except Exception as e:
             logger.warning("Failed to get learning analytics for student %s: %s", student_id, e)
-    
+
     return recommendations
 
 

@@ -33,5 +33,5 @@ urlpatterns = [
     path('internships/update/<str:cr_id>/', views.update_intern, name='update_intern'),
     path('skill_icc/', views.skill_list, name='skill_icc'),
     path('add_skill_icc/', views.add_skill_icc, name='add_skill_icc'),
-
+    
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
