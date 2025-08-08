@@ -6,13 +6,71 @@
 
 {% block extra_css %}
 <style>
+  .skill-process h3 {
+      position: relative;
+      padding-right: 30px; 
+      text-align: center;
+  }
+
+  .dropdown-icon {
+      cursor: pointer;
+      width: 12px;
+      height: 12px;
+      transition: transform 0.3s;
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+  }
+
+  .dropdown-icon:hover {
+      opacity: 0.8;
+  }
+
+  .dropdown-icon.rotated {
+      transform: translateY(-50%) rotate(180deg);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+  }
+
+  .modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .card.score {
+    width: 500px;
+    max-width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  }
+
   .container {
     display: grid;
     grid-template-columns: 1.2fr 2fr;
     grid-template-areas:
-      "profile learning"
       "profile skills"
-      "company skill";
+      "company company"
+      "skill skill"
+      "learning learning";
     gap: 20px;
     max-width: 1100px;
     margin: auto;
@@ -41,6 +99,9 @@
     grid-area: profile;
     text-align: left;
     padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .profile p {
@@ -61,6 +122,7 @@
     grid-area: skill;
     padding: 0;
   }
+
   .skill-content {
     padding: 30px 20px;
     display: flex;
@@ -88,27 +150,46 @@
     color: #333;
   }
 
-  .skills-area {
+  .skills-vertical {
     grid-area: skills;
     display: flex;
+    flex-direction: column;
     gap: 20px;
   }
 
   .skill-card {
-    flex: 1;
+    width: 100%;
     display: flex;
     flex-direction: column;
-    max-height: 250px;
     border: 1px solid #ddd;
     border-radius: 10px;
     overflow: hidden;
+    height: 260px;
   }
 
-  .skill-list,
+  .skill-list {
+      overflow-y: auto;
+      padding: 10px 20px;
+      flex-grow: 1;
+      height: 200px;
+  }
+
+  .learning-path {
+      grid-area: learning;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      overflow: hidden;
+      height: 260px;
+  }
+
   .learning-path ul {
-    overflow-y: auto;
-    padding: 10px 20px;
-    flex-grow: 1;
+      list-style: none;
+      margin: 0;
+      padding: 10px 20px;
+      overflow-y: auto;
+      flex-grow: 1;
   }
 
   .skill-card ul,
@@ -139,16 +220,6 @@
     font-size: 18px;
   }
 
-  .learning-path {
-    grid-area: learning;
-    display: flex;
-    flex-direction: column;
-    max-height: 250px;
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
   svg {
     width: 120px;
     height: 120px;
@@ -159,8 +230,8 @@
     font-size: 14px;
     border-radius: 8px;
     border: 1px solid #333;
-    width: 100%; /* tambahkan ini agar tidak sempit */
-    box-sizing: border-box; /* agar padding tidak menambah ukuran luar */
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .dropdown-select:hover {
@@ -171,155 +242,245 @@
 
 {% block content %}
 
-<div class="container">
-  <!-- Profile -->
-  <div class="card profile" style="text-align: center;">
-      <form method="POST" enctype="multipart/form-data" action="{% url 'update_profile_photo' %}">
-          {% csrf_token %}
-          <div style="position: relative; display: inline-block;">
-              <!-- Foto Profil -->
-              <img id="profileImage"
-                  src="{% if student.image %}{{ student.image }}{% else %}{% static '_analysis/images/default.jpg' %}{% endif %}"
-                  alt="Profile"
-                  style="width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #ccc;">
+  <div class="container">
 
-              <!-- Icon Kamera -->
-              <label for="imageUpload"
-                  style="position: absolute; bottom: 0px; right: 0px; width: 28px; height: 28px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px rgba(0,0,0,0.2); cursor: pointer;">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="width: 16px; height: 16px; fill: black;">
-                      <path d="M10.5 2a.5.5 0 0 1 .416.223l.737 1.104h53a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.327a1 1 0 0 1 1-1h5.347l.737-1.104A.5.5 0 0 1 5.5 2h5zM8 5.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
-                  </svg>
-              </label>
+    <div class="card profile" style="text-align: center;">
+        <form method="POST" enctype="multipart/form-data" action="{% url 'update_profile_photo' %}">
+            {% csrf_token %}
+            <div style="position: relative; display: inline-block;">
 
-              <!-- Input File -->
-              <input type="file" id="imageUpload" name="image" accept="image/*" onchange="this.form.submit()" style="display: none;">
-          </div>
-      </form>
+                <img id="profileImage"
+                    src="{% if student.image %}{{ student.image }}{% else %}{% static '_analysis/images/default.jpg' %}{% endif %}"
+                    alt="Profile"
+                    style="width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 3px solid #ccc;">
 
-      <!-- Informasi Profil -->
-      <div style="margin-top: 16px; text-align: left;">
-          <p><span class="label">NAME</span><br><span class="value">{{ student.full_name }}</span></p>
-          <p><span class="label">STUDENT ID</span><br><span class="value">{{ student.student_id }}</span></p>
-          <p><span class="label">MAJOR</span><br><span class="value">{{ student.major }}</span></p>
-          <p><span class="label">BATCH</span><br><span class="value">{{ student.batch }}</span></p>
-          <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
-      </div>
-  </div>
+                <label for="imageUpload"
+                    style="position: absolute; bottom: 0px; right: 0px; width: 28px; height: 28px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px rgba(0,0,0,0.2); cursor: pointer;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" style="width: 16px; height: 16px; fill: black;">
+                        <path d="M10.5 2a.5.5 0 0 1 .416.223l.737 1.104h53a1 1 0 0 1 1 1v7.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.327a1 1 0 0 1 1-1h5.347l.737-1.104A.5.5 0 0 1 5.5 2h5zM8 5.5a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 1a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
+                    </svg>
+                </label>
+
+                <input type="file" id="imageUpload" name="image" accept="image/*" onchange="this.form.submit()" style="display: none;">
+            </div>
+        </form>
+
+        <div style="margin-top: 16px; text-align: left;">
+            <p><span class="label">NAME</span><br><span class="value">{{ student.full_name }}</span></p>
+            <p><span class="label">STUDENT ID</span><br><span class="value">{{ student.student_id }}</span></p>
+            <p><span class="label">MAJOR</span><br><span class="value">{{ student.major }}</span></p>
+            <p><span class="label">BATCH</span><br><span class="value">{{ student.batch }}</span></p>
+            <p><span class="label">GPA</span><br><span class="value">{{ student.gpa }}</span></p>
+        </div>
+    </div>
     
-  <!-- Learning Path -->
-  <div class="card learning-path">
-    <h3>Learning Path</h3>
-    {% if learning_path %}
-      <div class="skill-list">
-        <ul>
-          {% for course_title in learning_path %}
-            <li>{{ course_title }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% else %}
-      <div class="skill-list">
-        <p class="text-gray-600 text-sm mt-2">No data</p>
-      </div>
-    {% endif %}
-  </div>
-
-  <!-- Hard Skill and Soft Skill -->
-  <div class="skills-area">
-    <div class="card skill-card">
-      <h3>Hard Skill</h3>
-      <div class="skill-list">
-          <ul>
-          {% for skill in hard_skills %}
-              <li>{{ skill }}</li>
-          {% empty %}
-              <li>No hard skills available</li>
-          {% endfor %}
-          </ul>
-      </div>
+    <div class="skills-vertical">
+      <div class="card skill-card">
+        <h3>Hard Skill</h3>
+        <div class="skill-list">
+            <ul>
+            {% for skill in hard_skills %}
+                <li>{{ skill }}</li>
+            {% empty %}
+                <li>No hard skills available</li>
+            {% endfor %}
+            </ul>
+        </div>
       </div>
 
       <div class="card skill-card">
-      <h3>Soft Skill</h3>
-      <div class="skill-list">
-          <ul>
-          {% for skill in soft_skills %}
-              <li>{{ skill }}</li>
-          {% empty %}
-              <li>No soft skills available</li>
-          {% endfor %}
-          </ul>
-      </div>
-    </div>
-  </div>
-
-  <!-- Company -->
-  <div class="card company">
-    <h3>Internship Target</h3>
-    <div class="company-content">
-      <form method="get">
-        <label for="internship_id"><strong>Select Internship:</strong></label>
-        <select name="internship_id" id="internship_id" class="dropdown-select" onchange="this.form.submit()">
-          {% for option in internship_dropdown %}
-            <option value="{{ option.id }}" {% if option.id == selected_internship_id %}selected{% endif %}>
-              {{ option.label }}
-            </option>
-          {% endfor %}
-        </select>
-      </form>
-      <div class="mt-3">
-        <p><strong>Company :</strong> {{ company_name }}</p>
-        <p><strong>Position :</strong> {{ position }}</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Skill Process -->
-  <div class="card skill-process">
-      <h3>Skill Process</h3>
-      <h5>{{ company_name }} - {{ position }}</h5>
-      
-      <div class="skill-content">
-        <div class="skill-text-group">
-            <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
-            <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
-            <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+        <h3>Soft Skill</h3>
+        <div class="skill-list">
+            <ul>
+            {% for skill in soft_skills %}
+                <li>{{ skill }}</li>
+            {% empty %}
+                <li>No soft skills available</li>
+            {% endfor %}
+            </ul>
         </div>
-        <div class="skill-chart">
-            <svg viewBox="0 0 36 36">
-                <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
-                <circle
-                    cx="18"
-                    cy="18"
-                    r="16"
-                    fill="none"
-                    stroke="#4b456f"
-                    stroke-width="4"
-                    stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfilled_percent }}"
-                    stroke-linecap="round"
-                    transform="rotate(-90 18 18)"
-                />
+      </div>
+    </div>
+
+    <div class="card company">
+      <h3>Internship Target</h3>
+      <div class="company-content">
+        <form method="get">
+          <label for="internship_id"><strong>Select Internship:</strong></label>
+          <select name="internship_id" id="internship_id" class="dropdown-select" onchange="this.form.submit()">
+            {% for option in internship_dropdown %}
+              <option value="{{ option.id }}" {% if option.id == selected_internship_id %}selected{% endif %}>
+                {{ option.label }}
+              </option>
+            {% endfor %}
+          </select>
+        </form>
+        <div class="mt-3">
+          <p><strong>Company :</strong> {{ company_name }}</p>
+          <p><strong>Position :</strong> {{ position }}</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card skill-process">
+        <div style="position: relative;">
+            <h3 style="text-align: center;">
+                Skill Process
+            </h3>
+            <svg class="dropdown-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%);">
+                <path d="M6 9L12 15L18 9" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </div>
-      </div>
-  </div>
+        <h5>{{ company_name }} - {{ position }}</h5>
+        
+        <div class="skill-content">
+            <div class="skill-text-group">
+                <div class="main-percentage">{{ skill_fulfilled_percent }}%</div>
+                <div><strong>{{ skill_fulfilled_percent }}%</strong> Fulfilled</div>
+                <div><strong>{{ skill_not_fulfilled_percent }}%</strong> Not Fulfilled</div>
+            </div>
+            <div class="skill-chart">
+                <svg viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="16" fill="none" stroke="#eee" stroke-width="4" />
+                    <circle
+                        cx="18"
+                        cy="18"
+                        r="16"
+                        fill="none"
+                        stroke="#4b456f"
+                        stroke-width="4"
+                        stroke-dasharray="{{ skill_fulfilled_percent }}, {{ skill_not_fulfulfilled_percent }}"
+                        stroke-linecap="round"
+                        transform="rotate(-90 18 18)"
+                    />
+                </svg>
+            </div>
+        </div>
+    </div>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const internshipSelect = document.getElementById('internship_id');
-        
-        internshipSelect.addEventListener('change', function() {
-            // Submit form saat dropdown berubah
-            this.form.submit();
+    <div class="modal-overlay" id="scoreModal">
+      <div class="card score">
+        <h3>SCORE SKILL WITH CERTIFICATE:</h3>
+        <div style="padding: 20px;">
+          
+          <div style="font-size: 28px; font-weight: bold; color: #555879; text-align: center; margin-bottom: 20px;">
+            {{ skill_with_cert.final_percent }}%
+          </div>
+
+          <h4>CALCULATE:</h4>
+          <ul>
+            <li>Skill : {{ skill_with_cert.skill_percent }}%</li>
+            <li>Skill + Sertifikat : {{ skill_with_cert.bonus_percent }}%</li>
+            <li><strong>Final : {{ skill_with_cert.final_percent }}%</strong></li>
+          </ul>
+
+          <h4>DETAIL:</h4>
+          <ul>
+            {% for skill, status in skill_with_cert.detail %}
+              <li>{{ skill|title }} → {{ status }}</li>
+            {% endfor %}
+          </ul>
+   
+          <h4>NOTED:</h4>
+          <ul>
+            <li>Skill: 1.0 point</li>
+            <li>Certificate: 1.5 point</li>
+          </ul>
+
+          <div style="margin-top: 20px; text-align: center;">
+            <button onclick="closeModal()" style="padding: 8px 16px; background: #555879; color: white; border: none; border-radius: 4px; cursor: pointer;">
+              Close
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    
+    <div class="card learning-path">
+      <h3>Learning Path</h3>
+      <h5>{{ company_name }} - {{ position }}</h5>
+      {% if learning_path %}
+        <div class="skill-list">
+          <ul>
+            {% for course_title in learning_path %}
+              <li>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span>{{ course_title }}</span>
+                  <span style="font-size: 12px; color: #555879; background: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+                    Recommended
+                  </span>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% else %}
+        <div class="skill-list">
+          <p style="text-align: center; color: #888; padding: 20px;">
+            {% if not selected_internship_id %}
+              Please select an internship target to see recommended courses
+            {% else %}
+              No course recommendations available for this company
+            {% endif %}
+          </p>
+        </div>
+      {% endif %}
+    </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const internshipSelect = document.getElementById('internship_id');
+            const learningPathCard = document.querySelector('.learning-path');
+            const dropdownIcon = document.querySelector('.dropdown-icon');
+            const scoreModal = document.getElementById('scoreModal');
+            
+            if (internshipSelect) {
+                internshipSelect.addEventListener('change', function() {
+                    if (learningPathCard) {
+                        const skillList = learningPathCard.querySelector('.skill-list');
+                        if (skillList) {
+                            skillList.innerHTML = `
+                                <p style="text-align: center; color: #888; padding: 20px;">
+                                    Loading recommendations...
+                                </p>
+                            `;
+                        }
+                    }
+                    
+                    this.form.submit();
+                });
+                
+                const latestOption = document.querySelector('#internship_id option[selected]');
+                if (latestOption) {
+                    latestOption.selected = true;
+                }
+            }
+            
+            if (dropdownIcon && scoreModal) {
+                dropdownIcon.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    this.classList.toggle('rotated');
+                    scoreModal.classList.toggle('active');
+                });
+
+                scoreModal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeModal();
+                    }
+                });
+            }
         });
-        
-        // Auto-select pilihan terbaru saat pertama kali load
-        const latestOption = document.querySelector('#internship_id option[selected]');
-        if (latestOption) {
-            latestOption.selected = true;
+
+        function closeModal() {
+            const scoreModal = document.getElementById('scoreModal');
+            const dropdownIcon = document.querySelector('.dropdown-icon');
+            
+            if (scoreModal) scoreModal.classList.remove('active');
+            if (dropdownIcon) dropdownIcon.classList.remove('rotated');
         }
-    });
-  </script>
-</div>
+      </script>
+  </div>
 
 {% endblock %}

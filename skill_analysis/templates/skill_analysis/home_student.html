@@ -125,6 +125,40 @@
       </div>
     </div>
 
+    <!-- Learning Path -->
+    <div class="card learning-path">
+      <h3>Learning Path</h3>      
+      <h5>{{ company_name }} - {{ position }}</h5>
+      <div class="card-body">
+        {% if learning_path %}
+          <div class="scrollable-list">
+            <ul>
+              {% for course_title in learning_path %}
+                <li>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>{{ course_title }}</span>
+                    <span style="font-size: 12px; color: #555879; background: #f0f0f0; padding: 2px 6px; border-radius: 4px;">
+                      Recommended
+                    </span>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% else %}
+          <div class="skill-list">
+            <p style="text-align: center; color: #888; padding: 20px;">
+              {% if not selected_internship_id %}
+                Please select an internship target to see recommended courses
+              {% else %}
+                No course recommendations available for this company
+              {% endif %}
+            </p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
     <!-- Certificates -->
     <div class="card">
       <h3>List of Certificates</h3>
@@ -135,24 +169,6 @@
           {% endfor %}
         {% else %}
           <span class="text-muted">No certificates uploaded</span>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Learning Path -->
-    <div class="card learning-path">
-      <h3>Learning Path</h3>
-      <div class="card-body">
-        {% if learning_path %}
-          <div class="scrollable-list">
-            <ul>
-              {% for course_title in learning_path %}
-                <li>{{ course_title }}</li>
-              {% endfor %}
-            </ul>
-          </div>
-        {% else %}
-          <p class="text-gray-600 text-sm mt-2">No data</p>
         {% endif %}
       </div>
     </div>

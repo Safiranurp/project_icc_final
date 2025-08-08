@@ -15,6 +15,7 @@
         <tr>
           <th>Skill</th>
           <th>Type</th>
+          <th>Certificate</th>
           <th>Delete</th>
         </tr>
       </thead>
@@ -24,11 +25,12 @@
               <tr>
                 <td>{{ skill.skill_name }}</td>
                 <td>{{ skill.skill_type }}</td>
+                <td>{{ skill.certificate_count }}</td>
                  <td>
                   <a href="{% url 'delete_skill' skill.skill_name|urlencode %}"  
                     class="btn btn-sm btn-danger"
                     onclick="return confirm('Delete this skill?');">🗑</a>
-                </td>
+                </td>
               </tr>
             {% endfor %}
           {% else %}
@@ -143,7 +145,6 @@
   </div>
 </div>
 
-<!-- === SCRIPT === -->
 <script>
   function toggleForm() {
     const form = document.getElementById("skillForm");
@@ -176,7 +177,8 @@
           opt.textContent = skill;
           skillNameSelect.appendChild(opt);
         });
-      });
+      })
+      .catch(error => console.error('Error fetching skills:', error));
   }
 
   function populateCertSkills() {
@@ -193,15 +195,27 @@
           opt.textContent = skill;
           certSkillNameSelect.appendChild(opt);
         });
-      });
+      })
+      .catch(error => console.error('Error fetching skills:', error));
   }
 
-  skillTypeSelect?.addEventListener("change", populateSkills);
-  certSkillTypeSelect?.addEventListener("change", populateCertSkills);
+  // Event listeners
+  if (skillTypeSelect) {
+    skillTypeSelect.addEventListener("change", populateSkills);
+  }
+  
+  if (certSkillTypeSelect) {
+    certSkillTypeSelect.addEventListener("change", populateCertSkills);
+  }
 
-  window.onload = () => {
-    populateSkills();
-    populateCertSkills();
-  };
+  // Initialize on load
+  document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById("skillForm").style.display !== "none") {
+      populateSkills();
+    }
+    if (document.getElementById("certForm").style.display !== "none") {
+      populateCertSkills();
+    }
+  });
 </script>
 {% endblock %}
