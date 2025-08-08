@@ -109,7 +109,6 @@
 
 {% block content %}
 <div class="content-area">
-    <!-- Header Section -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <div class="flex justify-between items-center">
             <div>
@@ -131,7 +130,6 @@
         </div>
     </div>
 
-    <!-- Company Selection Section -->
     {% if recommended_companies %}
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <form method="GET" action="{% url 'learning' %}">
@@ -200,7 +198,6 @@
     </div>
     {% endif %}
 
-    <!-- Profile Completion Guide -->
     {% if show_completion_guide %}
     <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 mb-6 rounded-r-lg">
         <div class="flex items-start">
@@ -209,7 +206,6 @@
                 <h3 class="text-lg font-medium text-yellow-800 mb-2">Complete Your Profile for Recommendations</h3>
                 <p class="text-yellow-700 mb-4">{{ completion_message }}</p>
 
-                <!-- Profile Completion Progress -->
                 <div class="mb-4">
                     <div class="flex justify-between text-sm text-yellow-700 mb-1">
                         <span>Profile Completion</span>
@@ -220,7 +216,6 @@
                     </div>
                 </div>
 
-                <!-- Missing Requirements -->
                 {% if missing_requirements %}
                 <div class="mb-4">
                     <h4 class="font-semibold text-yellow-800 mb-2">Missing Requirements:</h4>
@@ -235,7 +230,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Action Buttons -->
                 <div class="flex gap-2">
                     {% if not has_skills %}
                     <a href="{% url 'skill' %}" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm">
@@ -253,7 +247,6 @@
     </div>
     {% endif %}
 
-    <!-- Skills Gap Analysis -->
     {% if skill_gaps %}
     <div class="bg-red-50 border-l-4 border-red-400 p-6 mb-6 rounded-r-lg">
         <h3 class="text-lg font-medium text-red-800 mb-3">
@@ -274,7 +267,6 @@
     </div>
     {% endif %}
 
-    <!-- Error Display -->
     {% if error %}
     <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r-lg">
         <div class="flex items-center">
@@ -284,7 +276,6 @@
     </div>
     {% endif %}
 
-    <!-- Recommendations Summary -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-6">
         <h3 class="text-lg font-semibold text-gray-800 mb-4">
             <i class="fas fa-chart-bar text-green-600 mr-2"></i>
@@ -313,13 +304,12 @@
         </div>
     </div>
 
-    <!-- Course Recommendations -->
     {% if recommendations %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {% for rec in recommendations %}
         <div class="course-card bg-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300">
             <div class="relative p-6">
-                <!-- Priority Badge -->
+
                 <div class="absolute top-4 right-4">
                     {% if rec.priority == 'High' %}
                         <span class="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
@@ -336,7 +326,6 @@
                     {% endif %}
                 </div>
 
-                <!-- Course Header -->
                 <div class="pr-20 mb-4">
                     <h3 class="text-xl font-bold text-gray-800 mb-2">{{ rec.course_name }}</h3>
                     <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
@@ -348,7 +337,6 @@
                     {% endif %}
                 </div>
 
-                <!-- Scores and Metrics -->
                 <div class="flex justify-between items-center mb-4">
                     <div class="text-center">
                         <div class="text-2xl font-bold text-blue-600">{{ rec.score|default:0 }}</div>
@@ -362,7 +350,6 @@
                     {% endif %}
                 </div>
 
-                <!-- Skills Coverage -->
                 {% if rec.covers_skills %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-green-700 mb-2">
@@ -379,7 +366,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Skills Reinforcement -->
                 {% if rec.reinforces_skills %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-blue-700 mb-2">
@@ -396,7 +382,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Learning Outcomes -->
                 {% if rec.learning_outcomes %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-purple-700 mb-2">
@@ -414,7 +399,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Recommendation Reasons -->
                 {% if rec.reasons %}
                 <div class="mb-4">
                     <h4 class="text-sm font-semibold text-gray-700 mb-2">
@@ -432,7 +416,6 @@
                 </div>
                 {% endif %}
 
-                <!-- Skill Summary -->
                 {% if rec.skill_summary %}
                 <div class="bg-gray-50 p-3 rounded-lg">
                     <p class="text-sm text-gray-700">
@@ -446,7 +429,6 @@
         {% endfor %}
     </div>
 
-    <!-- Empty State -->
     {% else %}
     <div class="bg-white rounded-lg shadow-md p-12 text-center">
         <div class="pulse-animation mb-4">
@@ -488,7 +470,6 @@
     </div>
     {% endif %}
 
-    <!-- Debug Information (only shown when ENABLE_DEBUG_LOGGING is True) -->
     {% if debug_info %}
     <div class="bg-gray-50 rounded-lg p-4 mb-6 border border-gray-200">
         <h4 class="text-sm font-semibold text-gray-700 mb-2">
@@ -509,9 +490,8 @@
 
 {% csrf_token %}
 <script>
-// Hide any auto-refresh elements that might be added dynamically
 document.addEventListener('DOMContentLoaded', function() {
-    // Hide any elements with auto-refresh related classes
+
     const elementsToHide = document.querySelectorAll(
         '.auto-refresh-message, .loading-indicator, .refreshing-message, .auto-updating, .auto-refresh-indicator'
     );
@@ -520,10 +500,9 @@ document.addEventListener('DOMContentLoaded', function() {
         element.style.display = 'none';
     });
     
-    // Remove any text containing "auto-refresh" or similar
     const allElements = document.querySelectorAll('*');
     allElements.forEach(function(element) {
-        if (element.children.length === 0) { // Only text nodes
+        if (element.children.length === 0) {
             const text = element.textContent || element.innerText;
             if (text && text.toLowerCase().includes('auto-refresh')) {
                 element.style.display = 'none';

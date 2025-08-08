@@ -7,32 +7,24 @@ from django.db import connection, OperationalError
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
-# NEW: optional numpy / sklearn imports (safe fallback)
 try:
     import numpy as np
     from sklearn.ensemble import RandomForestClassifier
     _HAVE_SKLEARN = True
-except Exception:  # ImportError, etc.
+except Exception:
     _HAVE_SKLEARN = False
 
 logger = logging.getLogger(__name__)
 
-# ------------------------------------------------------------------
-# CONFIG - ENHANCED
-# ------------------------------------------------------------------
 USE_RANDOM_FOREST = True            
 DEBUG_SQL = False
-MODEL_TTL_SEC = 24 * 3600           # cache model 24 jam
-RECOMMENDATION_TTL_SEC = 6 * 3600   # cache rekomendasi 6 jam
-MAX_RETURN_COURSES = None           # Show all relevant courses
-REQUIRE_SKILLS_INPUT = True         # STRICT: Require skills input
-REQUIRE_INTERNSHIP_SELECTION = True # STRICT: Require internship selection
-MIN_SKILLS_REQUIRED = 3             # INCREASED: Minimum 3 skills (sesuai views)
-MIN_SCORE_THRESHOLD = 0.5           # NEW: Minimum score untuk recommendations
-
-# ============================================================
-# ENHANCED CACHE dengan Auto-Invalidation
-# ============================================================
+MODEL_TTL_SEC = 24 * 3600           
+RECOMMENDATION_TTL_SEC = 6 * 3600   
+MAX_RETURN_COURSES = None           
+REQUIRE_SKILLS_INPUT = True         
+REQUIRE_INTERNSHIP_SELECTION = True 
+MIN_SKILLS_REQUIRED = 3             
+MIN_SCORE_THRESHOLD = 0.5           
 class ModelCache:
     """
     Enhanced cache dengan auto-invalidation support
@@ -41,7 +33,6 @@ class ModelCache:
     def _key(student_id: str, data_type: str, company_id: Optional[str]) -> str:
         return f"ml_{data_type}_{student_id}_{company_id or 'none'}"
 
-    # ---------------- model ----------------
     @staticmethod
     def get_model(student_id: str, company_id: Optional[str] = None):
         data = cache.get(ModelCache._key(student_id, "model", company_id))
@@ -57,7 +48,6 @@ class ModelCache:
             MODEL_TTL_SEC,
         )
 
-    # ------------- recommendations ----------
     @staticmethod
     def get_recommendations(student_id: str, company_id: Optional[str] = None):
         data = cache.get(ModelCache._key(student_id, "recommendations", company_id))
@@ -73,11 +63,10 @@ class ModelCache:
             RECOMMENDATION_TTL_SEC,
         )
 
-    # ------------- profile status ----------
     @staticmethod
     def get_profile_status(student_id: str):
         data = cache.get(f"profile_status_{student_id}")
-        if data and (time.time() - data.get("created_at", 0)) < 3600:  # 1 hour cache
+        if data and (time.time() - data.get("created_at", 0)) < 3600: 
             return data.get("status")
         return None
 
@@ -89,7 +78,6 @@ class ModelCache:
             3600,
         )
 
-    # ------------- invalidate (ENHANCED) ---------------
     @staticmethod
     def invalidate(student_id: str, company_id: Optional[str] = None):
         """Invalidate specific student-company cache"""
@@ -101,13 +89,10 @@ class ModelCache:
     @staticmethod
     def invalidate_all(student_id: str):
         """Invalidate ALL cache for student (all companies)"""
-        # Hapus profile status
         cache.delete(f"profile_status_{student_id}")
         
-        # Hapus default (none company)
         ModelCache.invalidate(student_id, None)
         
-        # Hapus semua company-specific cache
         try:
             with connection.cursor() as cur:
                 cur.execute("""
@@ -128,10 +113,6 @@ class ModelCache:
         ModelCache.invalidate_all(student_id)
         logger.info("[CACHE] Auto-invalidated for student=%s due to %s update", student_id, update_type)
 
-
-# ============================================================
-# ENHANCED RECOMMENDATION ENGINE - STRICT VALIDATION
-# ============================================================
 class EnhancedCourseRecommendationEngine:
     """
     Enhanced version dengan STRICT validation dan targeted recommendations
@@ -147,11 +128,10 @@ class EnhancedCourseRecommendationEngine:
         """
         STRICT: Entry utama dengan validation - NO recommendations without complete profile
         """
-        # Initialize result structure
         result = {
             "has_internship": False,
             "has_skills": False,
-            "recommendations": [],  # EMPTY by default
+            "recommendations": [],  
             "skill_gap": [],
             "company_name": "",
             "message": "",
@@ -171,17 +151,14 @@ class EnhancedCourseRecommendationEngine:
             }
         }
 
-        # 1. STRICT SKILLS VALIDATION
         profile_status = self._get_comprehensive_profile_status(student_id)
         has_skills = profile_status["has_skills"]
         skills_count = profile_status["skills_count"]
         
-        # 2. STRICT INTERNSHIP VALIDATION
         if company_id is None:
             company_id = self._get_student_selected_company(student_id)
         has_internship = bool(company_id)
         
-        # 3. UPDATE RESULT STATUS
         result.update({
             "has_skills": has_skills,
             "has_internship": has_internship,
@@ -195,17 +172,15 @@ class EnhancedCourseRecommendationEngine:
             }
         })
 
-        # 4. ABSOLUTE GATE - NO DATA = NO RECOMMENDATIONS (TIDAK ADA BYPASS)
         if not has_skills or not has_internship:
             result["message"] = self._build_completion_message(has_skills, has_internship, skills_count)
-            result["recommendations"] = []  # EXPLICITLY EMPTY
+            result["recommendations"] = []  
             logger.info(
                 "[RECOMMENDATION] STRICT validation failed for student=%s (skills=%s, internship=%s)", 
                 student_id, has_skills, has_internship
             )
             return result
 
-        # 5. CHECK CACHE (only after validation passes)
         cached = ModelCache.get_recommendations(student_id, company_id)
         if cached:
             result["recommendations"] = cached
@@ -214,11 +189,9 @@ class EnhancedCourseRecommendationEngine:
             logger.debug("[CACHE] Using recommendations cache student=%s company=%s", student_id, company_id)
             return result
 
-        # 6. GENERATE TARGETED RECOMMENDATIONS
         try:
             recommendations = self._generate_targeted_recommendations(student_id, company_id)
             
-            # FILTER by minimum score threshold
             filtered_recommendations = [
                 r for r in recommendations 
                 if r.get('score', 0) >= MIN_SCORE_THRESHOLD
@@ -229,7 +202,6 @@ class EnhancedCourseRecommendationEngine:
             result["metadata"]["total_courses_evaluated"] = len(recommendations)
             result["metadata"]["courses_above_threshold"] = len(filtered_recommendations)
             
-            # Cache the results
             ModelCache.set_recommendations(student_id, company_id, filtered_recommendations)
             
             logger.info(
@@ -239,7 +211,7 @@ class EnhancedCourseRecommendationEngine:
             
         except Exception as e:
             logger.error("[RECOMMENDATION] Generation failed for student=%s: %s", student_id, str(e))
-            result["recommendations"] = []  # NO fallback courses
+            result["recommendations"] = [] 
             result["message"] = "Unable to generate recommendations. Please check your profile completeness."
 
         return result
@@ -263,7 +235,6 @@ class EnhancedCourseRecommendationEngine:
 
         try:
             with connection.cursor() as cur:
-                # Check skills dengan STRICT validation
                 cur.execute("""
                     SELECT hard_skill, soft_skill
                     FROM public.studentskill
@@ -275,11 +246,9 @@ class EnhancedCourseRecommendationEngine:
                     hard_skills = []
                     soft_skills = []
                     
-                    # Parse hard skills
                     if row[0] and row[0].strip():
                         hard_skills = [s.strip() for s in row[0].split(",") if s.strip()]
-                    
-                    # Parse soft skills  
+                     
                     if row[1] and row[1].strip():
                         soft_skills = [s.strip() for s in row[1].split(",") if s.strip()]
                     
@@ -289,10 +258,9 @@ class EnhancedCourseRecommendationEngine:
                         "hard_skills": hard_skills,
                         "soft_skills": soft_skills,
                         "skills_count": total_skills,
-                        "has_skills": total_skills >= MIN_SKILLS_REQUIRED  # STRICT: minimum 3 skills
+                        "has_skills": total_skills >= MIN_SKILLS_REQUIRED
                     })
 
-                # Check enrollments
                 cur.execute("""
                     SELECT COUNT(*)
                     FROM public.enrollment
@@ -308,7 +276,6 @@ class EnhancedCourseRecommendationEngine:
         except Exception as e:
             logger.error("Error getting profile status for student %s: %s", student_id, e)
 
-        # Cache the status
         ModelCache.set_profile_status(student_id, status)
         return status
 
@@ -316,13 +283,11 @@ class EnhancedCourseRecommendationEngine:
         """
         TARGETED: Generate recommendations yang HANYA fokus pada internship requirements
         """
-        # Get student data
         student_data = self._get_student_data(student_id)
         if not student_data:
             logger.warning("[RECOMMENDATION] No student data found for %s", student_id)
             return []
 
-        # Get company requirements - ESSENTIAL
         company_skills = self._get_company_required_skills(company_id)
         if not company_skills:
             logger.warning("[RECOMMENDATION] No company skills found for company %s", company_id)
@@ -330,10 +295,8 @@ class EnhancedCourseRecommendationEngine:
 
         cert_skills = self._get_student_certificate_skills(student_id)
 
-        # Build/get model
         model_data = self._get_or_train_model(student_id, company_id, student_data, company_skills, cert_skills)
 
-        # Get ONLY courses yang dapat membantu dengan company requirements
         enrolled_ids = list(student_data['enrollments'].keys())
         courses = self._get_targeted_courses_for_company_skills(enrolled_ids, company_skills)
         
@@ -341,16 +304,13 @@ class EnhancedCourseRecommendationEngine:
             logger.info("[RECOMMENDATION] No relevant courses found for company requirements")
             return []
 
-        # Generate targeted recommendations
         if USE_RANDOM_FOREST and model_data.get("rf_model"):
             recs = self._score_courses_rf_targeted(courses, student_data, company_skills, cert_skills, model_data)
         else:
             recs = self._score_courses_gap_based_targeted(courses, student_data, company_skills, cert_skills, model_data)
 
-        # ENHANCED DEDUPLICATION dengan skill merging
         recs = self._dedupe_recommendations_with_skill_merge(recs)
         
-        # FINAL FILTER: Hanya course yang benar-benar membantu skill gap
         filtered_recs = self._filter_truly_relevant_courses(recs, student_data, company_skills)
         
         logger.info(
@@ -367,11 +327,9 @@ class EnhancedCourseRecommendationEngine:
         if not company_skills:
             return []
         
-        # Extract required skill names
         required_skill_names = {skill["skill_name"].lower().strip() for skill in company_skills}
         
         try:
-            # Build SQL to find courses that teach required skills
             if enrolled_ids:
                 sql = """
                     SELECT DISTINCT c.course_id, c.subject, c.concentration, c.curriculum, c.sks, c.type, c.semester,
@@ -408,13 +366,11 @@ class EnhancedCourseRecommendationEngine:
             hard_str = r[7] or ""
             hard_list = [s.strip() for s in hard_str.split(",") if s.strip()]
             
-            # Check if this course teaches any required skills
             course_skills_lower = {skill.lower() for skill in hard_list}
             
-            # TARGETED FILTER: Only include if course teaches required skills
             skill_overlap = course_skills_lower.intersection(required_skill_names)
             
-            if skill_overlap:  # Course teaches at least one required skill
+            if skill_overlap:
                 relevant_courses.append({
                     "course_id": r[0],
                     "course_name": r[1],
@@ -423,7 +379,7 @@ class EnhancedCourseRecommendationEngine:
                     "difficulty_level": self._map_sks_to_difficulty(r[4]),
                     "difficulty_num": self._difficulty_to_num(self._map_sks_to_difficulty(r[4])),
                     "teach_skills": hard_list,
-                    "relevant_skills": list(skill_overlap),  # Skills that match company requirements
+                    "relevant_skills": list(skill_overlap), 
                 })
         
         logger.info(
@@ -457,17 +413,11 @@ class EnhancedCourseRecommendationEngine:
             covers_skills = set(skill.lower() for skill in rec.get('covers_skills', []))
             reinforces_skills = set(skill.lower() for skill in rec.get('reinforces_skills', []))
             
-            # Keep course if it:
-            # 1. Covers at least one skill gap, OR
-            # 2. Reinforces important skills AND has good score, OR  
-            # 3. Has very high score (indicates strong relevance)
-            
             covers_gap = bool(covers_skills.intersection(skill_gaps))
             reinforces_important = bool(reinforces_skills.intersection(required_skills))
             high_score = rec.get('score', 0) >= 2.0
             
             if covers_gap or (reinforces_important and rec.get('score', 0) >= 1.0) or high_score:
-                # Add gap analysis to metadata
                 rec['metadata'] = rec.get('metadata', {})
                 rec['metadata'].update({
                     'covers_skill_gaps': covers_gap,
@@ -479,10 +429,9 @@ class EnhancedCourseRecommendationEngine:
                 
                 filtered_courses.append(rec)
         
-        # Sort by relevance: gap-covering courses first, then by score
         filtered_courses.sort(key=lambda x: (
-            -len(x['metadata'].get('gaps_covered', [])),  # Gap coverage first
-            -x.get('score', 0)  # Then by score
+            -len(x['metadata'].get('gaps_covered', [])),
+            -x.get('score', 0) 
         ))
         
         return filtered_courses
@@ -507,34 +456,24 @@ class EnhancedCourseRecommendationEngine:
             if not teach:
                 continue
 
-            # TARGETED SCORING: Heavy weight on gap coverage
             covered_gap = teach & gap_set
             reinforce = teach & student_all & cert_lower
             
-            # Additional: skills that support company requirements (even if not gaps)
             supports_company = teach & req_lower
 
             score = 0.0
-            # HIGH weight for covering skill gaps
-            score += len(covered_gap) * 2.0  # Increased from 1.0
-            # MEDIUM weight for reinforcing certified skills that company needs
-            score += len(reinforce & req_lower) * 1.5  # Only certified skills that company needs
-            # LOW weight for general reinforcement
-            score += len(reinforce - req_lower) * 0.5  # Other reinforcement is less important
-            # MEDIUM weight for supporting company skills (not gaps, not reinforcement)
+            score += len(covered_gap) * 2.0
+            score += len(reinforce & req_lower) * 1.5 
+            score += len(reinforce - req_lower) * 0.5
             score += len(supports_company - covered_gap - reinforce) * 1.0
-            # Completion rate bonus (reduced importance)
-            score += model_data.get("completion_rate", 0) * 0.1  # Reduced from 0.2
-
-            # TARGETED FILTER: Only include courses with meaningful company relevance
+            score += model_data.get("completion_rate", 0) * 0.1
             company_relevance = len(covered_gap) + len(supports_company)
             if company_relevance == 0:
-                continue  # Skip courses with no company relevance
+                continue 
 
             if score <= MIN_SCORE_THRESHOLD:
                 continue
 
-            # Build detailed reasons
             reasons = []
             if covered_gap:
                 gaps_list = sorted(list(covered_gap))
@@ -573,23 +512,15 @@ class EnhancedCourseRecommendationEngine:
         """
         TARGETED: Priority based on score AND gap coverage
         """
-        # High priority: Good score AND covers gaps
         if score >= 3.0 and gap_coverage_count > 0:
             return "High"
-        # High priority: Excellent score regardless
         elif score >= 4.0:
             return "High"
-        # Medium priority: Good score OR covers gaps
         elif score >= 2.0 or gap_coverage_count > 0:
             return "Medium"
-        # Low priority: Everything else above threshold
         else:
             return "Low"
 
-    # ========================================================
-    # EXISTING METHODS (kept for compatibility)
-    # ========================================================
-    
     def _get_student_data(self, student_id: str) -> Optional[Dict[str, Any]]:
         """Get comprehensive student data with STRICT validation"""
         data = {
@@ -600,7 +531,6 @@ class EnhancedCourseRecommendationEngine:
         }
         try:
             with connection.cursor() as cur:
-                # Skills with validation
                 cur.execute("""
                     SELECT hard_skill, soft_skill
                     FROM public.studentskill
@@ -619,8 +549,7 @@ class EnhancedCourseRecommendationEngine:
                     
                     data["skills"]["hard"] = hard_skills
                     data["skills"]["soft"] = soft_skills
-
-                # Enrollments
+                    
                 cur.execute("""
                     SELECT e.course_id, c.subject, c.concentration, e.grade
                     FROM public.enrollment e
@@ -641,11 +570,10 @@ class EnhancedCourseRecommendationEngine:
             logger.error("DB error (student data): %s", e)
             return None
 
-        # STRICT validation
         total_skills = len(data["skills"]["hard"]) + len(data["skills"]["soft"])
         if total_skills < MIN_SKILLS_REQUIRED:
             logger.warning("Student %s has insufficient skills: %d (minimum: %d)", student_id, total_skills, MIN_SKILLS_REQUIRED)
-            return None  # Return None for insufficient skills
+            return None
             
         return data
 
@@ -738,10 +666,6 @@ class EnhancedCourseRecommendationEngine:
         req_lower = {d["skill_name"].lower() for d in company_skills}
         missing = sorted(list(req_lower - student_all))
         return missing
-
-    # ========================================================
-    # ENHANCED DEDUPLICATION WITH SKILL MERGING
-    # ========================================================
     
     def _dedupe_recommendations_with_skill_merge(self, recs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -761,7 +685,6 @@ class EnhancedCourseRecommendationEngine:
                 continue
 
             if cid not in dedup:
-                # First occurrence - initialize with enhanced structure
                 enhanced_rec = r.copy()
                 enhanced_rec.update({
                     'covers_skills': list(r.get('covers_skills', [])),
@@ -774,38 +697,31 @@ class EnhancedCourseRecommendationEngine:
                 })
                 dedup[cid] = enhanced_rec
             else:
-                # Merge with existing
                 existing = dedup[cid]
                 existing['merged_from_duplicates'] = True
                 existing['duplicate_count'] += 1
                 
-                # Keep higher score and priority
                 if r.get('score', 0) > existing.get('score', 0):
                     existing['score'] = r['score']
                     existing['priority'] = r['priority']
                 
-                # Merge all skill sets (avoid duplicates)
                 existing['covers_skills'] = list(set(existing['covers_skills'] + r.get('covers_skills', [])))
                 existing['reinforces_skills'] = list(set(existing['reinforces_skills'] + r.get('reinforces_skills', [])))
                 existing['supports_company_skills'] = list(set(existing['supports_company_skills'] + r.get('supports_company_skills', [])))
                 existing['all_taught_skills'] = list(set(existing['all_taught_skills'] + r.get('teach_skills', [])))
                 existing['skill_sources'].append(r.get('priority', 'Unknown'))
                 
-                # Merge reasons (unique only)
                 existing_reasons = set(existing.get('reasons', []))
                 new_reasons = set(r.get('reasons', []))
                 existing['reasons'] = list(existing_reasons.union(new_reasons))
 
-        # Convert to final format with enhanced skill information
         enhanced_recommendations = []
         for cid, course in dedup.items():
-            # Sort all skill lists
             covers_skills = sorted(course['covers_skills'])
             reinforces_skills = sorted(course['reinforces_skills'])
             supports_company_skills = sorted(course['supports_company_skills'])
             all_taught_skills = sorted(course['all_taught_skills'])
             
-            # Build enhanced course information (sesuai format gambar)
             enhanced_course = {
                 "course_id": course["course_id"],
                 "course_name": course["course_name"],
@@ -816,14 +732,12 @@ class EnhancedCourseRecommendationEngine:
                 "priority": course["priority"],
                 "reasons": course["reasons"],
                 
-                # ENHANCED SKILL INFORMATION (seperti di gambar)
-                "covers_skills": covers_skills,  # Skills yang mengisi gap
-                "reinforces_skills": reinforces_skills,  # Skills yang diperkuat
-                "supports_company_skills": supports_company_skills,  # All company-related skills
-                "all_taught_skills": all_taught_skills,  # Semua skills yang diajarkan
-                "teach_skills": all_taught_skills,  # Backward compatibility
+                "covers_skills": covers_skills,
+                "reinforces_skills": reinforces_skills,
+                "supports_company_skills": supports_company_skills,
+                "all_taught_skills": all_taught_skills,
+                "teach_skills": all_taught_skills,
                 
-                # NEW: Comprehensive skill analysis (untuk UI detail)
                 "skill_analysis": {
                     "total_skills_taught": len(all_taught_skills),
                     "gap_filling_skills": len(covers_skills),
@@ -833,13 +747,10 @@ class EnhancedCourseRecommendationEngine:
                     "skill_categories": self._categorize_skills(all_taught_skills),
                 },
                 
-                # NEW: Learning outcomes (untuk display)
                 "learning_outcomes": self._build_learning_outcomes(covers_skills, reinforces_skills, all_taught_skills),
                 
-                # NEW: Skill summary untuk UI (seperti di gambar)
                 "skill_summary": self._build_skill_summary(covers_skills, reinforces_skills, supports_company_skills),
                 
-                # Metadata
                 "metadata": {
                     "merged_from_duplicates": course.get('merged_from_duplicates', False),
                     "duplicate_count": course.get('duplicate_count', 1),
@@ -851,7 +762,6 @@ class EnhancedCourseRecommendationEngine:
             
             enhanced_recommendations.append(enhanced_course)
 
-        # Sort by priority and score
         priority_order = {'High': 3, 'Medium': 2, 'Low': 1}
         enhanced_recommendations.sort(
             key=lambda x: (priority_order.get(x.get('priority', 'Low'), 1), x.get('score', 0)), 
@@ -937,7 +847,6 @@ class EnhancedCourseRecommendationEngine:
             else:
                 categories["domain_specific"].append(skill)
         
-        # Return only non-empty categories
         return {k: v for k, v in categories.items() if v}
 
     def _calculate_recommendation_confidence(self, course_data: Dict[str, Any]) -> float:
@@ -951,26 +860,18 @@ class EnhancedCourseRecommendationEngine:
         
         confidence = 0.0
         
-        # Score contribution (0-0.3)
         confidence += min(score / 4.0, 1.0) * 0.3
         
-        # Priority contribution (0-0.3)
         priority_scores = {'High': 1.0, 'Medium': 0.6, 'Low': 0.3}
         confidence += priority_scores.get(priority, 0.3) * 0.3
         
-        # Gap coverage contribution (0-0.2)
         gap_factor = min(covers_count / 3.0, 1.0)
         confidence += gap_factor * 0.2
         
-        # Company relevance contribution (0-0.2)
         relevance_factor = min(company_relevance / 5.0, 1.0)
         confidence += relevance_factor * 0.2
         
         return round(confidence, 2)
-
-    # ========================================================
-    # HELPER METHODS untuk Validation & Status
-    # ========================================================
     
     def _get_missing_requirements(self, has_skills: bool, has_internship: bool) -> List[str]:
         """Get list of missing requirements"""
@@ -995,10 +896,6 @@ class EnhancedCourseRecommendationEngine:
             return "Please select an internship company to see tailored course recommendations."
         else:
             return "Profile complete! Generating recommendations..."
-
-    # ========================================================
-    # MACHINE LEARNING METHODS (Enhanced dari kode asli)
-    # ========================================================
     
     def _get_or_train_model(self, student_id: str, company_id: Optional[str], student_data: Dict[str, Any], 
                            company_skills: List[Dict[str, str]], cert_skills: Set[str]):
@@ -1180,9 +1077,8 @@ class EnhancedCourseRecommendationEngine:
             logger.error("[RF] predict_proba failed: %s", e)
             return self._score_courses_gap_based_targeted(courses, student_data, company_skills, cert_skills, model_data)
 
-        scores = proba * 3.0  # Scale scores
+        scores = proba * 3.0 
 
-        # Recompute coverage for reasons (same as gap-based method)
         stu_all = {s.lower() for s in (student_skills["hard"] + student_skills["soft"])}
         cert_lower = {s.lower() for s in cert_skills}
         req_lower = {d["skill_name"].lower() for d in company_skills} if company_skills else set()
@@ -1195,7 +1091,6 @@ class EnhancedCourseRecommendationEngine:
             reinforce = teach & stu_all & cert_lower
             supports_company = teach & req_lower
 
-            # Build reasons
             reasons = []
             if covered_gap:
                 gaps_list = sorted(list(covered_gap))
@@ -1230,10 +1125,6 @@ class EnhancedCourseRecommendationEngine:
 
         return recs
 
-    # ========================================================
-    # UTILITY METHODS
-    # ========================================================
-    
     def _calc_completion_rate(self, student_data):
         """Calculate student completion rate"""
         enrollments = student_data.get("enrollments", {})
@@ -1270,11 +1161,6 @@ class EnhancedCourseRecommendationEngine:
         if dl.startswith("adv"): return 5
         return 2
 
-
-# ============================================================
-# PUBLIC API FUNCTIONS - STRICT VALIDATION
-# ============================================================
-
 def get_course_recommendations(student_id: str, company_id: Optional[str] = None, 
                                bypass_validation: bool = False) -> Dict[str, Any]:
     """
@@ -1295,10 +1181,8 @@ def check_student_profile_status(student_id: str) -> Dict[str, Any]:
     """
     engine = EnhancedCourseRecommendationEngine()
     
-    # Get profile status
     profile_status = engine._get_comprehensive_profile_status(student_id)
     
-    # Get internship status
     company_id = engine._get_student_selected_company(student_id)
     has_internship = bool(company_id)
     
@@ -1328,13 +1212,10 @@ def get_student_learning_analytics(student_id: str) -> Dict[str, Any]:
     """
     engine = EnhancedCourseRecommendationEngine()
     
-    # Get current recommendations (will be empty if profile incomplete)
     rec_data = engine.get_recommendations(student_id)
     
-    # Get profile status
     profile_status = check_student_profile_status(student_id)
     
-    # Only calculate analytics if profile is complete
     recommendations = rec_data.get("recommendations", [])
     
     analytics = {
@@ -1365,10 +1246,6 @@ def get_student_learning_analytics(student_id: str) -> Dict[str, Any]:
     
     return analytics
 
-# ============================================================
-# MAIN WRAPPER FUNCTION - STRICT VERSION
-# ============================================================
-
 def run_course_recommendation(student_id: str, internship_id: str = None, bypass_validation=False):
     """
     STRICT: Main wrapper function - NO BYPASS allowed
@@ -1381,7 +1258,6 @@ def run_course_recommendation(student_id: str, internship_id: str = None, bypass
     Returns:
         Dict dengan recommendation data (empty if profile incomplete)
     """
-    # Ambil company_id dari internship_id
     company_id = None
     if internship_id:
         try:
@@ -1391,10 +1267,8 @@ def run_course_recommendation(student_id: str, internship_id: str = None, bypass
         except StudentCompanyChoice.DoesNotExist:
             logger.warning(f"Internship choice ID {internship_id} not found for student {student_id}")
 
-    # Kirim company_id ke fungsi rekomendasi
     recommendations = get_course_recommendations(student_id, company_id=company_id, bypass_validation=False)
 
-    # Tambah analytics jika profile lengkap
     if (
         recommendations.get("has_skills") and 
         recommendations.get("has_internship") and 
@@ -1407,11 +1281,6 @@ def run_course_recommendation(student_id: str, internship_id: str = None, bypass
             logger.warning("Failed to get learning analytics for student %s: %s", student_id, e)
 
     return recommendations
-
-
-# ============================================================
-# UTILITY FUNCTIONS - ENHANCED
-# ============================================================
 
 _PRIORITY_RANK = {'low': 0, 'medium': 1, 'high': 2}
 
@@ -1473,11 +1342,6 @@ def get_unenrolled_courses(enrolled_ids):
         params = []
     return sql, params
 
-
-# ============================================================
-# VALIDATION HELPER FUNCTIONS
-# ============================================================
-
 def validate_student_profile_completeness(student_id: str) -> Dict[str, Any]:
     """
     NEW: Comprehensive validation of student profile completeness
@@ -1509,7 +1373,6 @@ def validate_student_profile_completeness(student_id: str) -> Dict[str, Any]:
     }
     
     try:
-        # Check skills
         with connection.cursor() as cur:
             cur.execute("""
                 SELECT hard_skill, soft_skill
@@ -1544,7 +1407,6 @@ def validate_student_profile_completeness(student_id: str) -> Dict[str, Any]:
                     f"Add {MIN_SKILLS_REQUIRED - total_skills} more skills to your profile"
                 )
             
-            # Check internship selection
             cur.execute("""
                 SELECT company_id
                 FROM public.student_company_choice
@@ -1559,7 +1421,6 @@ def validate_student_profile_completeness(student_id: str) -> Dict[str, Any]:
             company_name = ""
             
             if has_internship:
-                # Get company name
                 cur.execute("""
                     SELECT company_name
                     FROM public.company_requirement
@@ -1580,7 +1441,6 @@ def validate_student_profile_completeness(student_id: str) -> Dict[str, Any]:
             if not has_internship:
                 validation_result["missing_requirements"].append("Select an internship company")
             
-            # Overall completion
             validation_result["is_complete"] = has_minimum_skills and has_internship
             
     except Exception as e:
@@ -1607,14 +1467,12 @@ def get_recommendation_eligibility(student_id: str) -> Dict[str, Any]:
         "validation_summary": validation
     }
     
-    # Calculate completion percentage
     completion_factors = [
         validation["has_minimum_skills"],
         validation["has_internship_selection"]
     ]
     eligibility["profile_completion_percentage"] = (sum(completion_factors) / len(completion_factors)) * 100
     
-    # Build next steps
     if not validation["has_minimum_skills"]:
         skills_needed = MIN_SKILLS_REQUIRED - validation["skills_count"]
         eligibility["next_steps"].append(f"Add {skills_needed} more skills to your profile")
@@ -1626,11 +1484,6 @@ def get_recommendation_eligibility(student_id: str) -> Dict[str, Any]:
         eligibility["next_steps"].append("Your profile is complete! You can now get personalized course recommendations.")
     
     return eligibility
-
-
-# ============================================================
-# DEBUGGING AND LOGGING UTILITIES
-# ============================================================
 
 def debug_recommendation_process(student_id: str, company_id: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -1648,14 +1501,12 @@ def debug_recommendation_process(student_id: str, company_id: Optional[str] = No
     try:
         engine = EnhancedCourseRecommendationEngine()
         
-        # Step 1: Profile validation
         debug_info["steps"]["1_profile_validation"] = {
             "status": "checking",
             "profile_status": engine._get_comprehensive_profile_status(student_id),
             "company_selection": engine._get_student_selected_company(student_id)
         }
         
-        # Step 2: Company skills
         if company_id or debug_info["steps"]["1_profile_validation"]["company_selection"]:
             cid = company_id or debug_info["steps"]["1_profile_validation"]["company_selection"]
             debug_info["steps"]["2_company_skills"] = {
@@ -1664,7 +1515,6 @@ def debug_recommendation_process(student_id: str, company_id: Optional[str] = No
                 "required_skills": engine._get_company_required_skills(cid)
             }
         
-        # Step 3: Student data
         student_data = engine._get_student_data(student_id)
         debug_info["steps"]["3_student_data"] = {
             "has_data": bool(student_data),
@@ -1675,7 +1525,6 @@ def debug_recommendation_process(student_id: str, company_id: Optional[str] = No
             } if student_data else None
         }
         
-        # Step 4: Skill gap analysis
         if company_id or debug_info["steps"]["1_profile_validation"]["company_selection"]:
             cid = company_id or debug_info["steps"]["1_profile_validation"]["company_selection"]
             skill_gaps = engine._get_skill_gap_for_student_company(student_id, cid)
@@ -1684,7 +1533,6 @@ def debug_recommendation_process(student_id: str, company_id: Optional[str] = No
                 "missing_skills": skill_gaps
             }
         
-        # Step 5: Recommendation generation attempt
         try:
             recommendations = engine.get_recommendations(student_id, company_id)
             debug_info["steps"]["5_recommendations"] = {
